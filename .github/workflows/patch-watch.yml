@@ -1,0 +1,143 @@
+name: Patch watch
+
+# The camera hook is pinned to per-build RVAs, so a game patch can move it.
+# This asks Steam once a day what the public branch's buildid is and opens an
+# issue when it changes, so a fixed release can be prepared before users hit
+# the problem.
+#
+# This is a heads-up channel, never the safety mechanism. The safety mechanism
+# is the in-process PE fingerprint check, which leaves the mod dormant on an
+# unrecognised build whether or not this workflow ever runs.
+
+on:
+  schedule:
+    - cron: '41 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: patch-watch
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Query the public branch buildid
+        id: steam
+        run: |
+          set -euo pipefail
+          docker run --rm steamcmd/steamcmd:ubuntu-22 \
+            +login anonymous +app_info_update 1 +app_info_print 2328760 +quit \
+            > steamcmd.out 2>&1 || true
+
+          # The buildid lives under the "public" branch block of the VDF.
+          buildid=$(awk '
+            /"branches"/       { inbranches=1 }
+            inbranches && /"public"/ { inpublic=1 }
+            inpublic && /"buildid"/  { gsub(/"/,"",$2); print $2; exit }
+          ' steamcmd.out)
+
+          if [ -z "${buildid:-}" ]; then
+            echo "::error::could not parse a buildid out of the SteamCMD output"
+            tail -n 60 steamcmd.out
+            exit 1
+          fi
+
+          # A buildid is a decimal integer. Enforcing that here is what lets the
+          # steps below treat it as data: it is awk's take on a third party's
+          # output, and anything else in it is a parse that went wrong, not a
+          # build to record.
+          case "$buildid" in
+            ''|*[!0-9]*)
+              echo "::error::parsed buildid is not a decimal integer"
+              tail -n 60 steamcmd.out
+              exit 1
+              ;;
+          esac
+
+          echo "buildid=$buildid" >> "$GITHUB_OUTPUT"
+          echo "public branch buildid = $buildid"
+
+      # Both values reach the shell through the environment, never through
+      # ${{ }} inside the script body - the same rule the issue step below
+      # already follows. Expression interpolation is substituted as TEXT before
+      # bash parses the line, so a `$(...)` or a backtick anywhere in the value
+      # would run as a command inside a job holding contents:write. The digit
+      # check above is the primary guard; this is what makes it not the only one.
+      - name: Compare with the last known buildid
+        id: compare
+        env:
+          BUILDID: ${{ steps.steam.outputs.buildid }}
+        run: |
+          set -euo pipefail
+          # Whitespace-stripped: the recorded value ends up in GITHUB_OUTPUT,
+          # where a stray newline would be read as further output lines.
+          last=$(tr -d '[:space:]' < .github/last-known-build.txt 2>/dev/null || echo "")
+          if [ "$last" = "$BUILDID" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "unchanged ($last)"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "last=$last" >> "$GITHUB_OUTPUT"
+            echo "changed: $last -> $BUILDID"
+          fi
+
+      - name: Record the new buildid
+        if: steps.compare.outputs.changed == 'true'
+        env:
+          BUILDID: ${{ steps.steam.outputs.buildid }}
+        run: |
+          set -euo pipefail
+          mkdir -p .github
+          echo "$BUILDID" > .github/last-known-build.txt
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/last-known-build.txt
+          git commit -m "chore: record Pinball FX buildid $BUILDID [skip ci]"
+          git push
+
+      - name: Open a rederive issue
+        if: steps.compare.outputs.changed == 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        # Both buildids reach the script through the environment, never through
+        # ${{ }} inside the JS body. Expression interpolation is substituted as
+        # TEXT before the script is parsed, so anything unexpected in the value
+        # (a quote, a newline) is executed as code rather than read as data -
+        # and this value is parsed out of a third party's output.
+        env:
+          BUILDID_FROM: ${{ steps.compare.outputs.last }}
+          BUILDID_TO: ${{ steps.steam.outputs.buildid }}
+        with:
+          script: |
+            const from = process.env.BUILDID_FROM || '(none recorded)';
+            const to = process.env.BUILDID_TO;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Pinball FX patched: Steam buildid ${from} -> ${to}`,
+              body: [
+                'Steam reports a new public-branch build. The camera hook is pinned per build,',
+                'so it may need a new profile.',
+                '',
+                '**A buildid change is not proof the EXE changed.** Asset-only patches move the',
+                'buildid and leave the executables alone, in which case close this issue.',
+                '',
+                'Checklist:',
+                '',
+                '1. Update the game, then run `pixi run check-fingerprint`.',
+                '2. If the printed fingerprints already match a profile in',
+                '   `src/builds/steam_offsets.cpp`, the executable did not change. Close this issue.',
+                '3. Otherwise rederive `kGetPlayerViewPointRva` and the caller RVAs (see',
+                '   `.lab/NOTES.md` for the recipe) and ADD a new profile to the TOP of',
+                '   `kKnownProfiles`. Never edit an existing profile - users who have not taken',
+                '   the patch still match it.',
+                '4. Note the addition in the CHANGELOG as an addition, not a fix.',
+              ].join('\n'),
+            });

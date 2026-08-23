@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "mod_info": {
+    "name": "PinballFXHeadTracking",
+    "version": "0.0.0",
+    "game_id": "pinball-fx"
+  },
+  "strategy": "AsiLoader",
+  "delivery_mode": "manifest",
+
+  "files": [
+    {
+      "source": "vendor/ultimate-asi-loader/dinput8.dll",
+      "target": "PinballFX/Binaries/Win64/winmm.dll"
+    },
+    {
+      "source": "plugins/PinballFXHeadTracking.asi",
+      "target": "PinballFX/Binaries/Win64/PinballFXHeadTracking.asi"
+    }
+  ],
+
+  "runtime_requirements": [],
+  "dependencies": []
+}

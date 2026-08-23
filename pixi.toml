@@ -1,0 +1,59 @@
+[workspace]
+name = "pinball-fx-headtracking"
+version = "0.0.0"
+description = "Head tracking mod for Pinball FX (UE 4.27)"
+license = "MIT"
+license-file = "LICENSE"
+channels = ["conda-forge"]
+platforms = ["win-64"]
+
+[tasks]
+# Sync the cameraunlock-core submodule to its tracked branch.
+sync = "git submodule update --remote cameraunlock-core"
+
+# No -G: let CMake auto-detect the installed Visual Studio generator. Pinning
+# "Visual Studio 17 2022" broke on CI once the windows runner image moved to
+# VS 2026 (VS 17 absent); auto-detect picks whatever VS the machine has.
+setup = { cmd = """
+    powershell -Command "if (-not (Test-Path 'build')) { cmake -B build -A x64 } else { Write-Host 'Build directory exists, skipping setup' -ForegroundColor Yellow }"
+""" }
+
+build = { cmd = "cmake --build build --config Release", depends-on = ["setup"] }
+build-debug = { cmd = "cmake --build build --config Debug", depends-on = ["setup"] }
+
+# Characterization tests for the parts of the hook that are decidable without a
+# game process (tests/). Same build the .asi comes out of, so CI runs it too.
+test = { cmd = "ctest --test-dir build -C Release --output-on-failure", depends-on = ["build"] }
+
+# Print the PE fingerprint of a game EXE as a paste-ready build-profile stub.
+# First thing to run when a user reports the "staying dormant" log line.
+check-fingerprint = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/check-fingerprint.ps1" }
+
+clean = { cmd = """
+    powershell -Command "if (Test-Path 'build') { Remove-Item 'build' -Recurse -Force }; Write-Host 'Build artifacts cleaned' -ForegroundColor Green"
+""" }
+
+clean-all = { cmd = """
+    powershell -Command "foreach ($d in @('build','release')) { if (Test-Path $d) { Remove-Item $d -Recurse -Force } }; Write-Host 'All build artifacts cleaned' -ForegroundColor Green"
+""" }
+
+# Bump the vendored Ultimate ASI Loader copy. Manual; commit the result.
+update-deps = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/update-deps.ps1" }
+
+# Package release ZIPs (installer + nexus).
+package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1", depends-on = ["build"] }
+
+# Build + deploy to the detected game directory (dev loop).
+install = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1", depends-on = ["build"] }
+
+# Remove the mod from the game directory. /y is mandatory: `pixi run` has no
+# TTY, so the template's trailing `pause` would throw "The handle is invalid"
+# and abort the task.
+uninstall = "scripts\\uninstall.cmd /y"
+
+# Automated release workflow (version bump, changelog, build, tag, push).
+# Fully unattended: pixi run release <major|minor|patch|nightly|X.Y.Z>
+release = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/release.ps1" }
+
+[dependencies]
+# No pixi-managed deps - relies on system CMake + Visual Studio.

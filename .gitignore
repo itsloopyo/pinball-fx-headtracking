@@ -1,0 +1,78 @@
+# Build outputs
+build/
+bin/
+obj/
+out/
+dist/
+release/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+*.tlog
+*.user
+*.suo
+*.aps
+*.ilk
+*.pdb
+
+# Game libs / stubs (referenced at build time, never committed)
+libs/
+
+# Pixi
+.pixi/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# Install-time state marker (written into the game dir at runtime)
+.headtracking-state.json
+
+# Local notes / doctrine files (per AGENTS.md)
+.lab/
+.millhouse/
+AGENTS.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+NEXUS_MODS.md
+scratch/
+
+# AI tooling scaffolding (local/per-user only)
+.claude/
+.codex/
+.cursor/
+.cursorrules
+.aider*
+
+# Skills, agents, MCP server configs (local/per-user only)
+.skills/
+skills/
+.agents/
+agents/
+.mcp/
+.mcp.json
+mcp.json
+mcp*.json
+*.mcp.json
+mcp-servers/
+
+# Reverse-engineering scratch and decompiler output. Game binaries and anything
+# derived from them must never enter this repo; RE work lives under .lab/.
+tools/
+*.exe
+*.gpr
+*.rep/
+*.gzf
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# OS detritus
+Thumbs.db
+.DS_Store
