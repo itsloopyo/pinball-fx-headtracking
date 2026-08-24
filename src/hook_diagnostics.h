@@ -69,5 +69,16 @@ namespace pinballfx_ht::diagnostics
     // so the mod stops touching FOV rather than writing through a pointer whose
     // target it has just proved it cannot identify. Rotation and position are
     // unaffected - they come through the hook's own parameters, not this struct.
+    // The rest of the FMinimalViewInfo the render caller hands over, read once
+    // per distinct FOV so a session covers every view it visited. It answers
+    // the question the FOV alone cannot: whether a view that looks flattened is
+    // a long lens (perspective projection, narrow angle - something the FOV and
+    // dolly knobs can answer) or an aspect ratio the game is constraining to
+    // something the window is not, which is a real geometric squash and a
+    // different fix entirely. Read-only, and past FOV the offsets are the
+    // stock UE 4.27 field order rather than anything derived from this build,
+    // so the line is a lead to confirm and not a fact.
+    void LogViewInfoFields(const void* viewInfo, float gameFov);
+
     void LogImplausibleFov(std::size_t fovFieldOffset, float gameFov);
 }

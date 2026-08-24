@@ -85,28 +85,33 @@ namespace pinballfx_ht
                 return FovSample{gameFov, gameFov};
             }
             diagnostics::RecordGameFov(gameFov);
+            diagnostics::LogViewInfoFields(outLocation, gameFov);
 
             if (!Runtime().trackingEnabled.load(std::memory_order_relaxed))
                 return FovSample{gameFov, gameFov};
 
-            const float renderFov =
-                EffectiveFov(gameFov, g_config->fov_override, g_config->fov_offset);
+            const float fovOffset = Runtime().fovOffset.load(std::memory_order_relaxed);
+            const float renderFov = EffectiveFov(gameFov, g_config->fov_override, fovOffset);
             if (renderFov != gameFov) *fov = renderFov;
-            diagnostics::LogFovApplied(gameFov, renderFov,
-                                       g_config->fov_override, g_config->fov_offset);
+            diagnostics::LogFovApplied(gameFov, renderFov, g_config->fov_override, fovOffset);
             return FovSample{gameFov, renderFov};
         }
 
-        ue::FVector ApplyPositionOffset(const ue::FQuat4d& baseQuat, FVector4f* outLocation)
+        void AddToLocation(FVector4f* outLocation, const ue::FVector& offset)
+        {
+            outLocation->X += static_cast<float>(offset.X);
+            outLocation->Y += static_cast<float>(offset.Y);
+            outLocation->Z += static_cast<float>(offset.Z);
+        }
+
+        ue::FVector ApplyPositionOffset(const FRotator4f& cleanRotation, FVector4f* outLocation)
         {
             float offsetX = 0.0f, offsetY = 0.0f, offsetZ = 0.0f;
             if (!g_session->GetPositionOffset(offsetX, offsetY, offsetZ))
                 return ue::FVector{0.0, 0.0, 0.0};
 
-            const ue::FVector offset = PositionOffsetUE(baseQuat, offsetX, offsetY, offsetZ);
-            outLocation->X += static_cast<float>(offset.X);
-            outLocation->Y += static_cast<float>(offset.Y);
-            outLocation->Z += static_cast<float>(offset.Z);
+            const ue::FVector offset = PositionOffsetUE(cleanRotation, offsetX, offsetY, offsetZ);
+            AddToLocation(outLocation, offset);
             return offset;
         }
 
@@ -172,6 +177,18 @@ namespace pinballfx_ht
             const bool inGameplay = ShouldTrackNow(gameplay, offsets.kYupGameStateInGame, g_gate);
             diagnostics::ReportGateVerdict(gameplay, inGameplay);
 
+            // The framing offset is a camera setting like the FOV knob, not a
+            // pose, so it does not wait for a tracker to be connected or for a
+            // head to move. It is held outside gameplay all the same: the menus
+            // and the scripted table moves are shots the game composed, and
+            // dollying those is not what the setting is for.
+            if (inGameplay) {
+                AddToLocation(outLocation, CameraFramingOffsetUE(cleanRotation,
+                    Runtime().offsetForward.load(std::memory_order_relaxed),
+                    Runtime().offsetUp.load(std::memory_order_relaxed),
+                    Runtime().offsetRight.load(std::memory_order_relaxed)));
+            }
+
             if (!g_session->Update(g_frameClock.Tick()))
                 return;
 
@@ -182,12 +199,11 @@ namespace pinballfx_ht
             if (!inGameplay)
                 return;
 
-            const ue::FQuat4d baseQuat = ViewQuat(cleanRotation);
-            *outRotation = ComposeTrackedRotation(cleanRotation, baseQuat,
+            *outRotation = ComposeTrackedRotation(cleanRotation,
                 pose.yaw, pose.pitch, pose.roll,
                 Runtime().worldSpaceYaw.load(std::memory_order_relaxed));
 
-            const ue::FVector positionOffset = ApplyPositionOffset(baseQuat, outLocation);
+            const ue::FVector positionOffset = ApplyPositionOffset(cleanRotation, outLocation);
 
             diagnostics::LogPoseSample(call, retRva, cleanRotation, cleanLocation, pose,
                                        *outRotation, positionOffset, fov, *g_receiver, *g_session);

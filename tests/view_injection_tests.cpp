@@ -71,19 +71,18 @@ void InjectGateTests(int& failures)
 void RotationCompositionTests(int& failures)
 {
     const FRotator4f clean{10.0f, 20.0f, 5.0f};
-    const ue::FQuat4d baseQuat = ViewQuat(clean);
 
     // World-space yaw is plain FRotator addition, and roll is SUBTRACTED - the
     // engine's roll runs opposite the tracker's.
-    const FRotator4f world = ComposeTrackedRotation(clean, baseQuat, 3.0f, 4.0f, 2.0f, true);
+    const FRotator4f world = ComposeTrackedRotation(clean, 3.0f, 4.0f, 2.0f, true);
     Check(failures, NearEqual(world.Yaw, 23.0f) && NearEqual(world.Pitch, 14.0f)
                  && NearEqual(world.Roll, 3.0f),
           "world yaw adds yaw/pitch and subtracts roll");
 
     // A zero head pose must leave the game's own rotation untouched in both
     // modes, or enabling tracking would nudge the view before the user moves.
-    const FRotator4f worldIdle = ComposeTrackedRotation(clean, baseQuat, 0, 0, 0, true);
-    const FRotator4f localIdle = ComposeTrackedRotation(clean, baseQuat, 0, 0, 0, false);
+    const FRotator4f worldIdle = ComposeTrackedRotation(clean, 0, 0, 0, true);
+    const FRotator4f localIdle = ComposeTrackedRotation(clean, 0, 0, 0, false);
     Check(failures, NearEqual(worldIdle.Yaw, clean.Yaw) && NearEqual(worldIdle.Pitch, clean.Pitch)
                  && NearEqual(worldIdle.Roll, clean.Roll),
           "world yaw with no head pose is the identity");
@@ -96,53 +95,141 @@ void RotationCompositionTests(int& failures)
     // DOWN at the table, so this is the normal case here rather than a corner
     // one - it is why world yaw is the default.
     const FRotator4f level{0.0f, 0.0f, 0.0f};
-    const ue::FQuat4d levelQuat = ViewQuat(level);
-    const FRotator4f levelLocal = ComposeTrackedRotation(level, levelQuat, 30.0f, 0, 0, false);
+    const FRotator4f levelLocal = ComposeTrackedRotation(level, 30.0f, 0, 0, false);
     Check(failures, NearEqual(levelLocal.Yaw, 30.0f, 1e-3) && NearEqual(levelLocal.Pitch, 0.0f, 1e-3)
                  && NearEqual(levelLocal.Roll, 0.0f, 1e-3),
           "local yaw from a level view is a plain yaw");
 
     const FRotator4f pitched{-45.0f, 0.0f, 0.0f};
-    const ue::FQuat4d pitchedQuat = ViewQuat(pitched);
-    const FRotator4f pitchedLocal = ComposeTrackedRotation(pitched, pitchedQuat, 30.0f, 0, 0, false);
-    const FRotator4f pitchedWorld = ComposeTrackedRotation(pitched, pitchedQuat, 30.0f, 0, 0, true);
+    const FRotator4f pitchedLocal = ComposeTrackedRotation(pitched, 30.0f, 0, 0, false);
+    const FRotator4f pitchedWorld = ComposeTrackedRotation(pitched, 30.0f, 0, 0, true);
     Check(failures, NearEqual(pitchedWorld.Roll, 0.0f) && NearEqual(pitchedWorld.Yaw, 30.0f),
           "world yaw stays horizon-locked on a camera angled down at the table");
     Check(failures, std::fabs(pitchedLocal.Roll) > 1.0f,
           "local yaw leans on a pitched camera (the reason world yaw is the default)");
+
+    // Cabinet mode rolls the view 90 degrees for a rotated monitor. Local yaw
+    // composes around that roll rather than through it: yawing the head must
+    // still yaw the view, not pitch it, and the display roll must come out the
+    // far side intact or the table renders sideways.
+    const FRotator4f cabinet{-27.0f, -93.2f, 90.0f};
+    const FRotator4f cabinetIdle = ComposeTrackedRotation(cabinet, 0, 0, 0, false);
+    Check(failures, NearEqual(cabinetIdle.Roll, 90.0f, 1e-3)
+                 && NearEqual(cabinetIdle.Pitch, -27.0f, 1e-3)
+                 && NearEqual(cabinetIdle.Yaw, -93.2f, 1e-3),
+          "local yaw preserves a 90-degree display roll when the head is still");
+
+    // 30 degrees of head yaw comes out as 33 of view yaw and 4 of pitch (the
+    // lean local yaw always has on a pitched camera). Composing THROUGH the
+    // roll instead sent the whole 30 into pitch and left the yaw where it was.
+    const FRotator4f cabinetYawed = ComposeTrackedRotation(cabinet, 30.0f, 0, 0, false);
+    Check(failures, cabinetYawed.Yaw - cabinet.Yaw > 25.0f
+                 && std::fabs(cabinetYawed.Pitch - cabinet.Pitch) < 10.0f,
+          "local yaw under a display roll yaws the view rather than pitching it");
 }
 
 void PositionOffsetTests(int& failures)
 {
-    // Identity view: UE camera-forward is +X, right +Y, up +Z.
-    const ue::FQuat4d identity = ViewQuat(FRotator4f{0.0f, 0.0f, 0.0f});
+    // Level view: UE forward is +X, right +Y, up +Z.
+    const FRotator4f level{0.0f, 0.0f, 0.0f};
 
     // The processor's forward lean is NEGATIVE z, and the offset is metres
     // while UE works in centimetres. Leaning in must move the camera FORWARD
     // by the full amount - a mirrored sign here is the "leaning in barely
     // moves" bug AGENTS.md calls out, and on a table it is the difference
     // between seeing past a ramp and not.
-    const ue::FVector lean = PositionOffsetUE(identity, 0.0f, 0.0f, -0.40f);
+    const ue::FVector lean = PositionOffsetUE(level, 0.0f, 0.0f, -0.40f);
     Check(failures, NearEqual(lean.X, 40.0) && NearEqual(lean.Y, 0.0) && NearEqual(lean.Z, 0.0),
-          "a full forward lean moves 40cm along camera-forward");
+          "a full forward lean moves 40cm along the flattened camera-forward");
 
-    const ue::FVector back = PositionOffsetUE(identity, 0.0f, 0.0f, 0.10f);
+    const ue::FVector back = PositionOffsetUE(level, 0.0f, 0.0f, 0.10f);
     Check(failures, NearEqual(back.X, -10.0), "a backward lean moves 10cm backwards");
 
-    const ue::FVector sway = PositionOffsetUE(identity, 0.30f, 0.0f, 0.0f);
+    const ue::FVector sway = PositionOffsetUE(level, 0.30f, 0.0f, 0.0f);
     Check(failures, NearEqual(sway.Y, -30.0) && NearEqual(sway.X, 0.0),
           "sway runs opposite UE camera-right");
 
-    const ue::FVector heave = PositionOffsetUE(identity, 0.0f, 0.20f, 0.0f);
+    const ue::FVector heave = PositionOffsetUE(level, 0.0f, 0.20f, 0.0f);
     Check(failures, NearEqual(heave.Z, 20.0) && NearEqual(heave.X, 0.0),
-          "heave runs along camera-up");
+          "heave runs along world up");
 
-    // The offset is built in the CLEAN camera basis, so it follows where the
-    // body faces: yawed 90 degrees, forward is world +Y.
-    const ue::FQuat4d yawed = ViewQuat(FRotator4f{0.0f, 90.0f, 0.0f});
-    const ue::FVector leanYawed = PositionOffsetUE(yawed, 0.0f, 0.0f, -0.40f);
+    // The basis follows where the camera FACES: yawed 90 degrees, forward is
+    // world +Y.
+    const ue::FVector leanYawed = PositionOffsetUE(FRotator4f{0.0f, 90.0f, 0.0f},
+                                                   0.0f, 0.0f, -0.40f);
     Check(failures, NearEqual(leanYawed.X, 0.0, 1e-3) && NearEqual(leanYawed.Y, 40.0, 1e-3),
-          "the offset follows the camera basis, not world axes");
+          "the offset follows the camera's yaw, not world axes");
+
+    // ...and nothing else about the camera. Pitch first: every table view looks
+    // down at the playfield, some of them by nearly 60 degrees. A basis that
+    // inherited that pitch would turn a lean forward into a dive at the glass,
+    // which is not what the head did.
+    const ue::FVector leanPitched = PositionOffsetUE(FRotator4f{-58.7f, 0.0f, 0.0f},
+                                                     0.0f, 0.0f, -0.40f);
+    Check(failures, NearEqual(leanPitched.X, 40.0, 1e-3) && NearEqual(leanPitched.Z, 0.0, 1e-3),
+          "a forward lean stays horizontal under a nose-down camera");
+
+    // Roll second, and this is the cabinet-mode case: the game rolls the view
+    // 90 degrees so the table stands upright on a rotated monitor. Inheriting
+    // that roll swapped sway with heave - a lean to the right lifted the camera
+    // 27cm and moved it 14cm sideways, on the game's own cabinet view.
+    const FRotator4f cabinet{-27.0f, -93.2f, 90.0f};
+    const ue::FVector swayCabinet = PositionOffsetUE(cabinet, 0.30f, 0.0f, 0.0f);
+    Check(failures, NearEqual(swayCabinet.Z, 0.0, 1e-3)
+                 && NearEqual(std::sqrt(swayCabinet.X * swayCabinet.X
+                                      + swayCabinet.Y * swayCabinet.Y), 30.0, 1e-3),
+          "sway stays horizontal under a 90-degree display roll");
+
+    const ue::FVector heaveCabinet = PositionOffsetUE(cabinet, 0.0f, 0.20f, 0.0f);
+    Check(failures, NearEqual(heaveCabinet.Z, 20.0, 1e-3)
+                 && NearEqual(heaveCabinet.X, 0.0, 1e-3)
+                 && NearEqual(heaveCabinet.Y, 0.0, 1e-3),
+          "heave stays vertical under a 90-degree display roll");
+
+    // Same head movement, same world offset, whatever the display roll is.
+    const ue::FVector rolled = PositionOffsetUE(FRotator4f{-27.0f, -93.2f, 0.0f},
+                                                0.12f, -0.05f, -0.21f);
+    const ue::FVector unrolled = PositionOffsetUE(cabinet, 0.12f, -0.05f, -0.21f);
+    Check(failures, NearEqual(rolled.X, unrolled.X, 1e-6)
+                 && NearEqual(rolled.Y, unrolled.Y, 1e-6)
+                 && NearEqual(rolled.Z, unrolled.Z, 1e-6),
+          "the position basis is roll-independent");
+}
+
+void CameraFramingOffsetTests(int& failures)
+{
+    const FRotator4f level{0.0f, 0.0f, 0.0f};
+
+    Check(failures, NearEqual(CameraFramingOffsetUE(level, 0.0f, 0.0f, 0.0f).X, 0.0)
+                 && NearEqual(CameraFramingOffsetUE(level, 0.0f, 0.0f, 0.0f).Z, 0.0),
+          "an unconfigured framing offset moves the camera nowhere");
+
+    // Forward runs along the line of sight - that is what makes a dolly hold
+    // the aim point while the lens widens under it.
+    const ue::FVector dollyBack = CameraFramingOffsetUE(FRotator4f{-30.0f, 0.0f, 0.0f},
+                                                        -100.0f, 0.0f, 0.0f);
+    Check(failures, NearEqual(dollyBack.X, -86.603, 1e-3) && NearEqual(dollyBack.Z, 50.0, 1e-3),
+          "a negative forward offset backs the camera off along the line of sight");
+
+    const ue::FVector up = CameraFramingOffsetUE(level, 0.0f, 25.0f, 0.0f);
+    Check(failures, NearEqual(up.Z, 25.0) && NearEqual(up.X, 0.0),
+          "the up offset raises the camera");
+
+    const ue::FVector right = CameraFramingOffsetUE(level, 0.0f, 0.0f, 25.0f);
+    Check(failures, NearEqual(right.Y, 25.0) && NearEqual(right.X, 0.0),
+          "the right offset slides the camera across the view");
+
+    // Cabinet mode again: the framing knobs are how a player answers the stock
+    // portrait camera, so up must mean up to them and not to the rotated
+    // framebuffer.
+    const ue::FVector upCabinet = CameraFramingOffsetUE(FRotator4f{-27.0f, -93.2f, 90.0f},
+                                                        0.0f, 25.0f, 0.0f);
+    const ue::FVector upUnrolled = CameraFramingOffsetUE(FRotator4f{-27.0f, -93.2f, 0.0f},
+                                                         0.0f, 25.0f, 0.0f);
+    Check(failures, NearEqual(upCabinet.X, upUnrolled.X, 1e-6)
+                 && NearEqual(upCabinet.Y, upUnrolled.Y, 1e-6)
+                 && NearEqual(upCabinet.Z, upUnrolled.Z, 1e-6),
+          "the framing basis is roll-independent too");
 }
 
 void FieldOfViewTests(int& failures)
@@ -209,6 +296,7 @@ int RunViewInjectionTests()
     InjectGateTests(failures);
     RotationCompositionTests(failures);
     PositionOffsetTests(failures);
+    CameraFramingOffsetTests(failures);
     FieldOfViewTests(failures);
     return pinballfx_tests::Report("View injection tests", failures);
 }

@@ -127,14 +127,35 @@ namespace pinballfx_ht
     // The tracker pose the session hands out, in degrees.
     struct HeadPose { float yaw, pitch, roll; };
 
-    inline ue::FQuat4d ViewQuat(const FRotator4f& rotation)
+    // The engine's camera roll is not a camera tilt. In cabinet mode Pinball FX
+    // rolls the view 90 degrees so the playfield stands upright on a physically
+    // rotated monitor - a display transform, not something the player's head is
+    // doing. Any basis the mod builds for head movement therefore has to strip
+    // it, or every axis of that movement arrives on screen turned 90 degrees:
+    // measured on the game's own cabinet view (pitch -27, yaw -93.2, roll 90),
+    // a 0.30m lean to the right came out as 26.7cm of world UP and 13.6cm
+    // sideways. Roll still reaches the camera - it is in the composed rotation
+    // and in the head's own roll - it just never defines an axis.
+    //
+    // Roll is innermost in an FRotator (Yaw * Pitch * Roll), so the split is
+    // exact: the camera's full rotation is QuatMul(ViewQuatNoRoll, RollQuat).
+    inline ue::FQuat4d ViewQuatNoRoll(const FRotator4f& rotation)
     {
-        return ue::QuatFromEulerDeg(rotation.Pitch, rotation.Yaw, rotation.Roll);
+        return ue::QuatFromEulerDeg(rotation.Pitch, rotation.Yaw, 0.0);
     }
 
-    // baseQ must be ViewQuat(clean); it is passed in because the caller also
-    // needs it for the position offset and the conversion is not free.
-    inline FRotator4f ComposeTrackedRotation(const FRotator4f& clean, const ue::FQuat4d& baseQ,
+    inline ue::FQuat4d RollQuat(const FRotator4f& rotation)
+    {
+        return ue::QuatFromEulerDeg(0.0, 0.0, rotation.Roll);
+    }
+
+    // Yaw only: where the camera faces, flattened to the horizon.
+    inline ue::FQuat4d HorizonQuat(const FRotator4f& rotation)
+    {
+        return ue::QuatFromEulerDeg(0.0, rotation.Yaw, 0.0);
+    }
+
+    inline FRotator4f ComposeTrackedRotation(const FRotator4f& clean,
                                              float yaw, float pitch, float roll,
                                              bool worldSpaceYaw)
     {
@@ -143,9 +164,13 @@ namespace pinballfx_ht
             return FRotator4f{clean.Pitch + pitch, clean.Yaw + yaw, clean.Roll - roll};
         }
         // Camera-local: quaternion post-multiply, which leans on pitched turns.
+        // Composed AROUND the engine's roll rather than through it, so the head
+        // yaws about the camera's own up-axis and not about whatever axis the
+        // display rotation left pointing up.
         const ue::FQuat4d headLocalQ = ue::QuatFromEulerDeg(
             static_cast<double>(pitch), static_cast<double>(yaw), -static_cast<double>(roll));
-        const ue::FRotator composed = ue::QuatToRotator(ue::QuatMul(baseQ, headLocalQ));
+        const ue::FRotator composed = ue::QuatToRotator(ue::QuatMul(
+            ue::QuatMul(ViewQuatNoRoll(clean), headLocalQ), RollQuat(clean)));
         return FRotator4f{
             static_cast<float>(composed.Pitch),
             static_cast<float>(composed.Yaw),
@@ -154,27 +179,67 @@ namespace pinballfx_ht
     }
 
     // Build a world-space camera-location offset (UE units = cm) from the
-    // session's processed offset (metres) in the CLEAN camera frame, so head
-    // sway follows the body rather than the head-rotated view. On a pinball
-    // table this is the parallax that makes leaning in to see past a ramp work
-    // the way it does on a real cabinet.
-    inline ue::FVector PositionOffsetUE(const ue::FQuat4d& baseQ, float offX, float offY, float offZ)
+    // session's processed offset (metres). The basis is horizon-locked - the
+    // camera's yaw and nothing else - because this is what the player's BODY
+    // did, and a body leaning right moves horizontally whatever the camera is
+    // doing. Inheriting the camera's pitch would send a lean forward diving at
+    // the playfield (these views sit 27 to 59 degrees nose-down), and
+    // inheriting its roll breaks cabinet mode outright - see ViewQuatNoRoll.
+    // On a pinball table this is the parallax that makes leaning in to see past
+    // a ramp work the way it does on a real cabinet.
+    inline ue::FVector PositionOffsetUE(const FRotator4f& clean, float offX, float offY, float offZ)
     {
-        const ue::FVector camFwd   = ue::QuatRotateVec(baseQ, ue::FVector{1.0, 0.0, 0.0});
-        const ue::FVector camRight = ue::QuatRotateVec(baseQ, ue::FVector{0.0, 1.0, 0.0});
-        const ue::FVector camUp    = ue::QuatRotateVec(baseQ, ue::FVector{0.0, 0.0, 1.0});
+        const ue::FQuat4d horizonQ = HorizonQuat(clean);
+        const ue::FVector fwd   = ue::QuatRotateVec(horizonQ, ue::FVector{1.0, 0.0, 0.0});
+        const ue::FVector right = ue::QuatRotateVec(horizonQ, ue::FVector{0.0, 1.0, 0.0});
         constexpr double kMetresToUE = 100.0;
         // Sign flips are the core-to-engine convention boundary, not user
-        // inversion: the processor's forward lean is NEGATIVE z (that is the
-        // axis carrying the generous limit_z), and its sway runs opposite UE's
-        // camera-right.
+        // inversion: the processor's forward lean is NEGATIVE z, and its sway
+        // runs opposite UE's camera-right.
         const double s = -static_cast<double>(offZ) * kMetresToUE;  // surge -> forward
         const double r = -static_cast<double>(offX) * kMetresToUE;  // sway  -> right
-        const double u =  static_cast<double>(offY) * kMetresToUE;  // heave -> up
+        const double u =  static_cast<double>(offY) * kMetresToUE;  // heave -> world up
         return ue::FVector{
-            camFwd.X * s + camRight.X * r + camUp.X * u,
-            camFwd.Y * s + camRight.Y * r + camUp.Y * u,
-            camFwd.Z * s + camRight.Z * r + camUp.Z * u,
+            fwd.X * s + right.X * r,
+            fwd.Y * s + right.Y * r,
+            u,
+        };
+    }
+
+    // ---- static framing offset -------------------------------------------
+    // Bound on a configured framing offset, in UE units (cm). Ten metres of
+    // camera travel is a typo, not a preference - the views this exists for sit
+    // a couple of metres from the table.
+    inline constexpr float kMaxCameraOffset = 1000.0f;
+
+    // A fixed shift of the render camera, in UE units (cm), on top of whatever
+    // the game placed. It exists for the cabinet/portrait views, where the game
+    // parks the camera far back with a ~15 degree lens - a long lens flattens
+    // the table into something close to an orthographic projection, and the
+    // frame still cuts the ends off some tables. Widening the FOV alone shrinks
+    // the table in frame; dollying in alone crops it further. Together they are
+    // a dolly-zoom: keep the framing, change the perspective.
+    //
+    // Forward runs along the line of sight, so a dolly holds the aim point
+    // steady. Up and right are perpendicular to it and roll-free, so on a
+    // rotated cabinet screen "up" is still up to the player.
+    inline ue::FVector CameraFramingOffsetUE(const FRotator4f& clean,
+                                             float forwardCm, float upCm, float rightCm)
+    {
+        if (forwardCm == 0.0f && upCm == 0.0f && rightCm == 0.0f)
+            return ue::FVector{0.0, 0.0, 0.0};
+
+        const ue::FQuat4d q = ViewQuatNoRoll(clean);
+        const ue::FVector fwd   = ue::QuatRotateVec(q, ue::FVector{1.0, 0.0, 0.0});
+        const ue::FVector right = ue::QuatRotateVec(q, ue::FVector{0.0, 1.0, 0.0});
+        const ue::FVector up    = ue::QuatRotateVec(q, ue::FVector{0.0, 0.0, 1.0});
+        const double f = static_cast<double>(forwardCm);
+        const double u = static_cast<double>(upCm);
+        const double r = static_cast<double>(rightCm);
+        return ue::FVector{
+            fwd.X * f + up.X * u + right.X * r,
+            fwd.Y * f + up.Y * u + right.Y * r,
+            fwd.Z * f + up.Z * u + right.Z * r,
         };
     }
 }
