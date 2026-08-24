@@ -36,6 +36,15 @@ namespace pinballfx_ht
         float fov_override = 0.0f;
         float fov_offset = 0.0f;
 
+        // A fixed shift of the render camera, in UE units (cm), applied while
+        // gameplay owns the camera. Forward runs along the line of sight, so a
+        // negative value pulls back; up and right are perpendicular to it and
+        // ignore the engine's display roll. Mainly for the cabinet/portrait
+        // views, where the stock camera is far back behind a ~15 degree lens.
+        float camera_offset_forward = 0.0f;
+        float camera_offset_up = 0.0f;
+        float camera_offset_right = 0.0f;
+
         // Where head tracking is allowed to touch the camera. Pinball FX renders
         // a live table behind its menus and plays scripted camera moves at the
         // start of a table and around table events; tracking in either fights a

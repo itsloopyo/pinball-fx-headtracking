@@ -82,6 +82,27 @@ Two equivalent binding sets. Use whichever your keyboard has; the chords exist f
 
 Cycling the tracking mode steps through: normal head tracking, rotation only, position only, and back to normal.
 
+### Tuning the camera framing in game
+
+The `[Camera]` values can be moved while you play, so you can find them by eye instead of by restarting. Two rows under your left hand, one column per value: the top row raises, the row under it lowers.
+
+| Value           | Up             | Down           | Step |
+|-----------------|----------------|----------------|------|
+| `FovOffset`     | `Ctrl+Shift+Q` | `Ctrl+Shift+A` | 1 deg |
+| `OffsetForward` | `Ctrl+Shift+W` | `Ctrl+Shift+S` | 10cm |
+| `OffsetUp`      | `Ctrl+Shift+E` | `Ctrl+Shift+D` | 10cm |
+| `OffsetRight`   | `Ctrl+Shift+R` | `Ctrl+Shift+F` | 10cm |
+
+`Ctrl+Shift+Z` puts all four back to what the INI says.
+
+Every change writes the whole set to `HeadTracking.log` as a block you can paste straight into the INI:
+
+```
+[19:14:02.881] framing: OffsetForward -> 80 cm | [Camera] FovOffset=10 OffsetForward=80 OffsetUp=-15 OffsetRight=0
+```
+
+Nothing is saved automatically. When the view looks right, copy the last of those lines into `HeadTracking.ini` so it survives the next launch.
+
 There is no recenter key. The mod applies the pose your tracker sends as-is, so center it in the tracker app: OpenTrack's Center bind, or the CENTER button in Headcam.
 
 ## Configuration
@@ -122,6 +143,11 @@ FovOverride=0
 ; Add this many degrees to whatever the current view asks for, keeping the
 ; relative framing of each view. FovOverride wins if you set both.
 FovOffset=0
+; Move the camera the game placed, in centimetres, while a table is in play.
+; Forward runs along the line of sight: negative pulls back, positive pushes in.
+OffsetForward=0
+OffsetUp=0
+OffsetRight=0
 
 [GameState]
 ; Track only during a table actually in play. The front end, table select,
@@ -142,6 +168,41 @@ SensitivityZ=1.0
 The pose is mapped 1:1 and nothing is clamped: the camera turns exactly as far as your head turned and moves exactly as far as your head moved, however far that is. Lean back a metre and the camera comes back out of the cabinet with you. Worth knowing on a pinball table specifically, the camera sits under a metre from the playfield with a fairly narrow field of view, so a given amount of head movement shifts the picture far more than the same movement would in a first-person game. Widening the FOV with `FovOffset` calms that down without touching the 1:1 mapping.
 
 Tracking suppressed by `[GameState]` is held, not reset, so the view picks up where your head is when play resumes rather than lurching.
+
+### Cabinet and portrait mode
+
+The cabinet cameras are a long lens. Read straight off the game's own view
+info: a desktop table view rendered at 26 degrees of field of view, a cabinet
+view at 15. Fifteen degrees is a telephoto lens, and a telephoto lens is what
+flattens a table into something close to an orthographic projection and crops
+the ends off the longer ones. That is the game composing those shots, and its
+own settings offer nothing but the tilt adjustment.
+
+The mod cannot redesign those cameras, but it can change the lens on the one
+the game placed and move it. Those are the two halves of a dolly-zoom:
+
+```ini
+[Camera]
+FovOffset=10       ; wider lens - more perspective, table shrinks in frame
+OffsetForward=80   ; ...and dolly in to put the size back
+```
+
+Widen and dolly in together and the table keeps roughly the size it had while
+the perspective deepens. Widen alone and you simply see more table, smaller,
+which on a cropped table is the fix on its own. Start around `FovOffset=6` to
+`12`, then move `OffsetForward` in 20cm steps until the framing looks right.
+Both take effect on the next launch, or tune them live with the chords above and
+paste the result in afterwards.
+
+`OffsetUp` and `OffsetRight` shift the camera across the view: if the cabinet
+camera sits higher than you want to look from, `OffsetUp=-15` drops it.
+
+All three apply only while a table is in play. Menus, the table intro fly-in
+and the mid-game cut-ins keep the camera the game composed.
+
+Head movement is unaffected by any of this: the mod builds its own axes from
+where the camera faces and nothing else, so a lean is a lean whether or not the
+game has rolled the view 90 degrees for a rotated screen.
 
 ## Troubleshooting
 

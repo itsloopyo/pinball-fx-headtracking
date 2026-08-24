@@ -4,6 +4,8 @@
 #include "hook_diagnostics.h"
 
 #include <atomic>
+#include <cstddef>
+#include <cstring>
 
 #include <windows.h>
 
@@ -184,6 +186,32 @@ namespace pinballfx_ht::diagnostics
                   "%.2f deg with FovOverride=%.1f FovOffset=%.1f",
             static_cast<double>(gameFov), static_cast<double>(renderFov),
             static_cast<double>(fovOverride), static_cast<double>(fovOffset));
+    }
+
+    void LogViewInfoFields(const void* viewInfo, float gameFov)
+    {
+        // One dump per distinct FOV, capped: a table switches view often, and
+        // the interesting comparison is desktop against cabinet rather than
+        // every cut-in in between.
+        constexpr int kMaxDumps = 8;
+        static std::atomic<int> s_dumps{0};
+        static std::atomic<float> s_lastFov{0.0f};
+        if (s_lastFov.load(std::memory_order_relaxed) == gameFov) return;
+        if (s_dumps.fetch_add(1, std::memory_order_relaxed) >= kMaxDumps) return;
+        s_lastFov.store(gameFov, std::memory_order_relaxed);
+
+        const auto* const bytes = static_cast<const unsigned char*>(viewInfo);
+        const auto ReadFloat = [bytes](std::size_t offset) {
+            float value = 0.0f;
+            std::memcpy(&value, bytes + offset, sizeof(value));
+            return static_cast<double>(value);
+        };
+
+        Log::Line("view-info: FOV=%.2f DesiredFOV=%.2f OrthoWidth=%.1f AspectRatio=%.4f "
+                  "flags=0x%02X projMode=0x%02X (offsets past FOV are the stock UE 4.27 "
+                  "field order)",
+            ReadFloat(0x18), ReadFloat(0x1C), ReadFloat(0x20), ReadFloat(0x2C),
+            bytes[0x30], bytes[0x31]);
     }
 
     void LogImplausibleFov(std::size_t fovFieldOffset, float gameFov)

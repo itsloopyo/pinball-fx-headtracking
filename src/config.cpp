@@ -177,6 +177,16 @@ namespace pinballfx_ht
         out.fov_offset         = ReadFloatChecked(ini, "Camera", "FovOffset",
                                                   out.fov_offset, -kMaxConfiguredFov, kMaxConfiguredFov);
 
+        out.camera_offset_forward = ReadFloatChecked(ini, "Camera", "OffsetForward",
+                                                    out.camera_offset_forward,
+                                                    -kMaxCameraOffset, kMaxCameraOffset);
+        out.camera_offset_up      = ReadFloatChecked(ini, "Camera", "OffsetUp",
+                                                    out.camera_offset_up,
+                                                    -kMaxCameraOffset, kMaxCameraOffset);
+        out.camera_offset_right   = ReadFloatChecked(ini, "Camera", "OffsetRight",
+                                                    out.camera_offset_right,
+                                                    -kMaxCameraOffset, kMaxCameraOffset);
+
         out.gameplay_only      = ini.ReadBool("GameState", "GameplayOnly", out.gameplay_only);
         out.suppress_during_camera_sequences =
             ini.ReadBool("GameState", "SuppressDuringCameraSequences",
@@ -246,7 +256,23 @@ namespace pinballfx_ht
             "; FovOffset adds to whatever each view asks for, which keeps the\n"
             "; differences between the views. FovOverride wins if you set both.\n"
             "FovOverride=0\n"
-            "FovOffset=0\n\n"
+            "FovOffset=0\n"
+            "; Move the camera the game placed, in centimetres, while a table is\n"
+            "; in play. OffsetForward runs along the line of sight, so a negative\n"
+            "; value pulls back and a positive one pushes in; OffsetUp and\n"
+            "; OffsetRight shift it across the view. Paired with FovOffset this is\n"
+            "; a dolly-zoom: widen the lens and dolly in to match, and the table\n"
+            "; keeps its size in frame but stops looking flat. The\n"
+            "; cabinet/portrait views are the ones that need it - they sit far\n"
+            "; back behind a ~15 degree lens, which is what flattens them.\n"
+            "; All four can be tuned in game, one chord pair each: Ctrl+Shift+Q/A\n"
+            "; is FovOffset, W/S is OffsetForward, E/D is OffsetUp, R/F is\n"
+            "; OffsetRight, and Ctrl+Shift+Z puts them back to what is written\n"
+            "; here. Every change is written to HeadTracking.log as a block to\n"
+            "; paste back in - nothing is saved automatically.\n"
+            "OffsetForward=0\n"
+            "OffsetUp=0\n"
+            "OffsetRight=0\n\n"
             "[GameState]\n"
             "; Head tracking only while a table is actually being played. The menus\n"
             "; render a live table behind them and the camera there is a composed\n"

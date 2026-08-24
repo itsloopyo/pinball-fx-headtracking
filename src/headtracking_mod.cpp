@@ -86,6 +86,10 @@ namespace pinballfx_ht
         {
             Runtime().trackingEnabled.store(g_config.enable_on_startup);
             Runtime().worldSpaceYaw.store(g_config.world_space_yaw);
+            Runtime().fovOffset.store(g_config.fov_offset);
+            Runtime().offsetForward.store(g_config.camera_offset_forward);
+            Runtime().offsetUp.store(g_config.camera_offset_up);
+            Runtime().offsetRight.store(g_config.camera_offset_right);
 
             cameraunlock::SensitivitySettings sens;
             sens.yaw          = g_config.yaw_sensitivity;
@@ -130,11 +134,13 @@ namespace pinballfx_ht
             const std::string exeDir = ExeDirectoryNarrow();
             WriteDefaultConfigIfMissing(exeDir);
             LoadConfig(exeDir, g_config);
-            Log::Line("config: udp_port=%d enable=%d yaw_sens=%.2f local_smoothing=%.2f remote_smoothing=%.2f position=%d fov_override=%.1f fov_offset=%.1f yaw_mode=%s yaw_mode_key=0x%02X gameplay_only=%d suppress_camera_sequences=%d",
+            Log::Line("config: udp_port=%d enable=%d yaw_sens=%.2f local_smoothing=%.2f remote_smoothing=%.2f position=%d fov_override=%.1f fov_offset=%.1f cam_offset=(fwd=%.1f up=%.1f right=%.1f)cm yaw_mode=%s yaw_mode_key=0x%02X gameplay_only=%d suppress_camera_sequences=%d",
                 g_config.udp_port, g_config.enable_on_startup ? 1 : 0,
                 g_config.yaw_sensitivity, g_config.local_smoothing, g_config.remote_smoothing,
                 g_config.position_enabled ? 1 : 0,
                 g_config.fov_override, g_config.fov_offset,
+                g_config.camera_offset_forward, g_config.camera_offset_up,
+                g_config.camera_offset_right,
                 g_config.world_space_yaw ? "world" : "local", g_config.yaw_mode_key,
                 g_config.gameplay_only ? 1 : 0,
                 g_config.suppress_during_camera_sequences ? 1 : 0);
@@ -238,7 +244,7 @@ namespace pinballfx_ht
                 return 0;
             }
 
-            g_hotkeys = StartHotkeys(*g_session, g_config.yaw_mode_key);
+            g_hotkeys = StartHotkeys(*g_session, g_config);
             Log::Line("init complete. End=toggle PageUp=cycle tracking mode "
                       "PageDown=yawmode (chords Ctrl+Shift+Y/G/H). Waiting for OpenTrack on UDP %d.",
                 g_config.udp_port);
