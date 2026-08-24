@@ -20,11 +20,11 @@ namespace pinballfx_ht::diagnostics
         // Pose sampling runs dense to begin with and then settles to the
         // heartbeat's cadence. The opening burst is what proves the whole
         // pipeline in a log the user sends - what the tracker put on the wire,
-        // what survived smoothing and the limits, what reached the camera - and
-        // a handful of samples answers that. Holding that rate for a three-hour
-        // session writes about a megabyte of it repeating itself, so the sample
-        // then slows rather than stopping, which still catches a problem that
-        // only starts an hour in.
+        // what survived smoothing, what reached the camera - and a handful of
+        // samples answers that. Holding that rate for a three-hour session
+        // writes about a megabyte of it repeating itself, so the sample then
+        // slows rather than stopping, which still catches a problem that only
+        // starts an hour in.
         constexpr std::uint64_t kPoseBurstSamples = 15;
         constexpr std::uint64_t kPoseBurstIntervalMs = 2000;
         constexpr std::uint64_t kPoseSteadyIntervalMs = kHeartbeatIntervalMs;
@@ -154,10 +154,10 @@ namespace pinballfx_ht::diagnostics
         // Position is reported at three stages because "the camera moves too
         // much / too little" can start at any of them: rawPos is what the
         // tracker actually sent (metres, straight off the wire), procPos is
-        // after smoothing and the per-axis limits, and posOff is the world
-        // vector finally added to the camera. Since the mod maps the pose 1:1,
-        // rawPos is also the answer to "is this the mod or my tracker profile" -
-        // which is nearly always the question being asked.
+        // after smoothing, and posOff is the world vector finally added to the
+        // camera. Since the mod maps the pose 1:1, rawPos is also the answer to
+        // "is this the mod or my tracker profile" - which is nearly always the
+        // question being asked.
         float rawX = 0, rawY = 0, rawZ = 0;
         receiver.GetPosition(rawX, rawY, rawZ);
         float procX = 0, procY = 0, procZ = 0;

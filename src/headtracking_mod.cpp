@@ -36,6 +36,12 @@ namespace pinballfx_ht
 
         constexpr wchar_t kLogFileName[] = L"\\HeadTracking.log";
 
+        // Metres, per axis and per direction. Head tracking is a 1:1 mapping
+        // of real head movement, and where a player's head goes is theirs to
+        // decide, so the box clamp is opened past anything a room allows
+        // instead of the mod second-guessing a lean.
+        constexpr float kNoPositionLimit = 1.0e6f;
+
         HANDLE g_bootstrapThread = nullptr;
 
         // Set by Shutdown before it tears anything down. The bootstrap runs on
@@ -103,15 +109,15 @@ namespace pinballfx_ht
             position.sensitivity_x = g_config.position_sensitivity_x;
             position.sensitivity_y = g_config.position_sensitivity_y;
             position.sensitivity_z = g_config.position_sensitivity_z;
-            position.limit_x       = g_config.limit_x;
-            // The INI exposes one vertical limit, so it has to reach both sides
-            // of the clamp - the processor's is [-limit_y_down, +limit_y], and
-            // leaving the down side at its struct default silently caps a raised
-            // LimitY at 0.20m downward.
-            position.limit_y       = g_config.limit_y;
-            position.limit_y_down  = g_config.limit_y;
-            position.limit_z       = g_config.limit_z;
-            position.limit_z_back  = g_config.limit_z_back;
+            // Unlimited lean. PositionProcessor always box-clamps, so "no
+            // limit" is a bound no head reaches rather than a skipped clamp,
+            // and all five bounds get it - one left at its struct default
+            // would still cap that direction at 0.10-0.40m.
+            position.limit_x       = kNoPositionLimit;
+            position.limit_y       = kNoPositionLimit;
+            position.limit_y_down  = kNoPositionLimit;
+            position.limit_z       = kNoPositionLimit;
+            position.limit_z_back  = kNoPositionLimit;
             g_session->SetPositionSettings(position);
 
             g_session->SetMode(g_config.position_enabled

@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <initializer_list>
 
 #include <windows.h>
 
@@ -26,7 +27,6 @@ namespace pinballfx_ht
         // to second-guess a setting. A negative sensitivity inverts the axis,
         // which is a legitimate thing to want, so those ranges stay symmetric.
         constexpr float kMaxSensitivity = 10.0f;
-        constexpr float kMaxPositionLimit = 5.0f;   // metres
 
         // GetAsyncKeyState reports nothing outside this range, so a key code
         // outside it would leave the toggle it binds silently dead.
@@ -108,6 +108,25 @@ namespace pinballfx_ht
                 "carried a hidden 0.15 floor that no longer exists. Set the two new keys.",
                 section, key);
         }
+
+        // The four position limits are gone, not renamed, so an INI carrying
+        // them from an older build now describes nothing. Saying so beats a
+        // player setting LimitZBack to hold the camera in the cabinet and
+        // watching it lean straight out anyway.
+        void WarnRetiredLimitKeys(const cameraunlock::IniReader& reader)
+        {
+            static bool warned = false;
+            if (warned) return;
+            for (const char* key : {"LimitX", "LimitY", "LimitZ", "LimitZBack"}) {
+                if (reader.ReadString("Position", key, "").empty()) continue;
+                warned = true;
+                Log::Line(
+                    "WARNING: Config key [Position] %s has been retired and is IGNORED. The "
+                    "mod no longer limits how far the camera leans - it follows your head "
+                    "wherever you take it. Delete the Limit keys from the INI.", key);
+                return;
+            }
+        }
     }
 
     void LoadConfig(const std::string& exeDir, Config& out)
@@ -173,20 +192,8 @@ namespace pinballfx_ht
         out.position_sensitivity_z = ReadFloatChecked(ini, "Position", "SensitivityZ",
                                                       out.position_sensitivity_z,
                                                       -kMaxSensitivity, kMaxSensitivity);
-        // PositionProcessor clamps each axis with [-limit, +limit], so a
-        // negative limit inverts the bounds and every input comes back as one
-        // edge or the other - the camera snaps between two extremes instead of
-        // following the head. Zero is legitimate (that axis stops moving),
-        // negative never is.
-        out.limit_x            = ReadFloatChecked(ini, "Position", "LimitX",
-                                                  out.limit_x, 0.0f, kMaxPositionLimit);
-        out.limit_y            = ReadFloatChecked(ini, "Position", "LimitY",
-                                                  out.limit_y, 0.0f, kMaxPositionLimit);
-        out.limit_z            = ReadFloatChecked(ini, "Position", "LimitZ",
-                                                  out.limit_z, 0.0f, kMaxPositionLimit);
-        out.limit_z_back       = ReadFloatChecked(ini, "Position", "LimitZBack",
-                                                  out.limit_z_back, 0.0f, kMaxPositionLimit);
         WarnRetiredSmoothingKey(ini, "Position", "Smoothing");
+        WarnRetiredLimitKeys(ini);
     }
 
     void WriteDefaultConfigIfMissing(const std::string& exeDir)
@@ -261,10 +268,8 @@ namespace pinballfx_ht
             "SensitivityX=1.0\n"
             "SensitivityY=1.0\n"
             "SensitivityZ=1.0\n"
-            "LimitX=0.30\n"
-            "LimitY=0.20\n"
-            "LimitZ=0.40\n"
-            "LimitZBack=0.10\n");
+            "; There are no lean limits: the camera follows your head as far\n"
+            "; as you take it, including back out of the cabinet.\n");
         std::fclose(file);
     }
 }

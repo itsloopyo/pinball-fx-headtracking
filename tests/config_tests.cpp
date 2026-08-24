@@ -72,8 +72,7 @@ void ParsingTests(int& failures)
         "[Camera]\nFovOverride=95.0\nFovOffset=7.5\n"
         "[GameState]\nGameplayOnly=0\nSuppressDuringCameraSequences=0\n"
         "[Position]\nEnabled=0\n"
-        "SensitivityX=2.0\nSensitivityY=3.0\nSensitivityZ=4.0\n"
-        "LimitX=0.11\nLimitY=0.22\nLimitZ=0.33\nLimitZBack=0.44\n");
+        "SensitivityX=2.0\nSensitivityY=3.0\nSensitivityZ=4.0\n");
 
     pinballfx_ht::Config config;
     pinballfx_ht::LoadConfig(dir, config);
@@ -101,9 +100,6 @@ void ParsingTests(int& failures)
                  && NearEqual(config.position_sensitivity_y, 3.0f)
                  && NearEqual(config.position_sensitivity_z, 4.0f),
           "the position sensitivities are read");
-    Check(failures, NearEqual(config.limit_x, 0.11f) && NearEqual(config.limit_y, 0.22f)
-                 && NearEqual(config.limit_z, 0.33f) && NearEqual(config.limit_z_back, 0.44f),
-          "the position limits are read");
 }
 
 void RetiredSmoothingKeyTests(int& failures)
@@ -153,10 +149,6 @@ void WrittenDefaultsMatchCompiledDefaultsTests(int& failures)
         NearEqual(written.position_sensitivity_x, compiled.position_sensitivity_x) &&
         NearEqual(written.position_sensitivity_y, compiled.position_sensitivity_y) &&
         NearEqual(written.position_sensitivity_z, compiled.position_sensitivity_z) &&
-        NearEqual(written.limit_x, compiled.limit_x) &&
-        NearEqual(written.limit_y, compiled.limit_y) &&
-        NearEqual(written.limit_z, compiled.limit_z) &&
-        NearEqual(written.limit_z_back, compiled.limit_z_back) &&
         NearEqual(written.fov_override, compiled.fov_override) &&
         NearEqual(written.fov_offset, compiled.fov_offset) &&
         written.gameplay_only == compiled.gameplay_only &&
@@ -177,7 +169,7 @@ void WrittenDefaultsMatchCompiledDefaultsTests(int& failures)
 // place a hostile or fat-fingered number can be stopped. Each case below has a
 // failure mode that reaches the player with no diagnostic: a port that binds
 // somewhere the tracker never reaches, a NaN that poisons the pose pipeline for
-// the rest of the session, or a negative limit that pins the camera off-centre.
+// the rest of the session, or a FOV the projection matrix cannot draw.
 void PortValidationTests(int& failures)
 {
     const std::string dir = MakeTempDir();
@@ -224,7 +216,7 @@ void NonFiniteFloatTests(int& failures)
     WriteIni(dir,
         "[Rotation]\nYawSensitivity=nan\nPitchSensitivity=inf\nRollSensitivity=-inf\n"
         "LocalSmoothing=nan\nRemoteSmoothing=1e400\n"
-        "[Position]\nSensitivityX=nan\nLimitZ=inf\n");
+        "[Position]\nSensitivityX=nan\nSensitivityZ=inf\n");
 
     pinballfx_ht::Config config;
     pinballfx_ht::LoadConfig(dir, config);
@@ -237,7 +229,7 @@ void NonFiniteFloatTests(int& failures)
                  && NearEqual(config.remote_smoothing, 0.15f),
           "nan and overflowed smoothing values fall back to their defaults");
     Check(failures, NearEqual(config.position_sensitivity_x, 1.0f)
-                 && NearEqual(config.limit_z, 0.40f),
+                 && NearEqual(config.position_sensitivity_z, 1.0f),
           "nan and inf position values fall back to their defaults");
 }
 
@@ -245,12 +237,9 @@ void OutOfRangeValueTests(int& failures)
 {
     const std::string dir = MakeTempDir();
 
-    // PositionProcessor clamps with [-limit, +limit]; a negative limit inverts
-    // the bounds, so every input comes back as one edge or the other and the
-    // camera snaps between two extremes instead of following the head.
     WriteIni(dir,
         "[Rotation]\nYawSensitivity=1e30\nLocalSmoothing=-0.5\nRemoteSmoothing=5\n"
-        "[Position]\nLimitX=-0.3\nLimitY=99\n");
+        "[Position]\nSensitivityX=1e30\n");
 
     pinballfx_ht::Config config;
     pinballfx_ht::LoadConfig(dir, config);
@@ -260,9 +249,9 @@ void OutOfRangeValueTests(int& failures)
     Check(failures, NearEqual(config.local_smoothing, 0.0f)
                  && NearEqual(config.remote_smoothing, 1.0f),
           "smoothing is clamped into 0-1 at the boundary");
-    Check(failures, config.limit_x >= 0.0f,
-          "a negative position limit is clamped to 0 - it would invert the clamp bounds");
-    Check(failures, config.limit_y <= 5.0f, "an absurd position limit is clamped");
+    Check(failures, config.position_sensitivity_x <= 10.0f
+                 && config.position_sensitivity_x > 0.0f,
+          "an absurd position sensitivity is clamped into range");
 
     // A FOV outside what the hook will apply is caught here, against the key
     // that caused it, rather than being silently repaired inside the render

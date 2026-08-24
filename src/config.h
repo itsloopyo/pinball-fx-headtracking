@@ -43,14 +43,12 @@ namespace pinballfx_ht
         bool gameplay_only = true;
         bool suppress_during_camera_sequences = true;
 
+        // No lean limits, and no INI keys for them: how far a player leans is
+        // their call, so nothing here clamps the tracked offset.
         bool position_enabled = true;
         float position_sensitivity_x = 1.0f;
         float position_sensitivity_y = 1.0f;
         float position_sensitivity_z = 1.0f;
-        float limit_x = 0.30f;
-        float limit_y = 0.20f;
-        float limit_z = 0.40f;
-        float limit_z_back = 0.10f;
     };
 
     // Both take the directory holding the game EXE; the INI sits beside it.
