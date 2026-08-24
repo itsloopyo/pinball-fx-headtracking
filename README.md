@@ -135,16 +135,11 @@ Enabled=1
 SensitivityX=1.0
 SensitivityY=1.0
 SensitivityZ=1.0
-; Safety stops, in metres of real head movement, not scaling. LimitZ is the
-; forward lean and gets the generous figure; LimitZBack is deliberately short
-; so you cannot pull the camera back out of the cabinet.
-LimitX=0.30
-LimitY=0.20
-LimitZ=0.40
-LimitZBack=0.10
+; There are no lean limits: the camera follows your head as far as you take it,
+; including back out of the cabinet.
 ```
 
-The pose is mapped 1:1: the camera turns exactly as far as your head turned and moves exactly as far as your head moved. Worth knowing on a pinball table specifically, the camera sits under a metre from the playfield with a fairly narrow field of view, so a given amount of head movement shifts the picture far more than the same movement would in a first-person game. Widening the FOV with `FovOffset` calms that down without touching the 1:1 mapping.
+The pose is mapped 1:1 and nothing is clamped: the camera turns exactly as far as your head turned and moves exactly as far as your head moved, however far that is. Lean back a metre and the camera comes back out of the cabinet with you. Worth knowing on a pinball table specifically, the camera sits under a metre from the playfield with a fairly narrow field of view, so a given amount of head movement shifts the picture far more than the same movement would in a first-person game. Widening the FOV with `FovOffset` calms that down without touching the 1:1 mapping.
 
 Tracking suppressed by `[GameState]` is held, not reset, so the view picks up where your head is when play resumes rather than lurching.
 
