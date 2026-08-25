@@ -89,19 +89,20 @@ The `[Camera]` values can be moved while you play, so you can find them by eye i
 | Value           | Up             | Down           | Step |
 |-----------------|----------------|----------------|------|
 | `FovOffset`     | `Ctrl+Shift+Q` | `Ctrl+Shift+A` | 1 deg |
-| `OffsetForward` | `Ctrl+Shift+W` | `Ctrl+Shift+S` | 10cm |
-| `OffsetUp`      | `Ctrl+Shift+E` | `Ctrl+Shift+D` | 10cm |
-| `OffsetRight`   | `Ctrl+Shift+R` | `Ctrl+Shift+F` | 10cm |
+| `OffsetForward` | `Ctrl+Shift+W` | `Ctrl+Shift+S` | 1cm |
+| `OffsetUp`      | `Ctrl+Shift+E` | `Ctrl+Shift+D` | 1cm |
+| `OffsetRight`   | `Ctrl+Shift+R` | `Ctrl+Shift+F` | 1cm |
 
-`Ctrl+Shift+Z` puts all four back to what the INI says.
+`Ctrl+Shift+X` saves the four values into `HeadTracking.ini`, so they come back
+next launch. `Ctrl+Shift+Z` puts them back to whatever is saved there. Nothing is
+written until you press `Ctrl+Shift+X`, so an experiment costs nothing.
 
-Every change writes the whole set to `HeadTracking.log` as a block you can paste straight into the INI:
+Every change is also logged, whole set at a time, so you can read a set back out
+of `HeadTracking.log` if you would rather type it in yourself:
 
 ```
 [19:14:02.881] framing: OffsetForward -> 80 cm | [Camera] FovOffset=10 OffsetForward=80 OffsetUp=-15 OffsetRight=0
 ```
-
-Nothing is saved automatically. When the view looks right, copy the last of those lines into `HeadTracking.ini` so it survives the next launch.
 
 There is no recenter key. The mod applies the pose your tracker sends as-is, so center it in the tracker app: OpenTrack's Center bind, or the CENTER button in Headcam.
 
@@ -190,9 +191,8 @@ OffsetForward=80   ; ...and dolly in to put the size back
 Widen and dolly in together and the table keeps roughly the size it had while
 the perspective deepens. Widen alone and you simply see more table, smaller,
 which on a cropped table is the fix on its own. Start around `FovOffset=6` to
-`12`, then move `OffsetForward` in 20cm steps until the framing looks right.
-Both take effect on the next launch, or tune them live with the chords above and
-paste the result in afterwards.
+`12`, then move `OffsetForward` until the framing looks right. Both take effect
+on the next launch, or tune them live with the chords above.
 
 `OffsetUp` and `OffsetRight` shift the camera across the view: if the cabinet
 camera sits higher than you want to look from, `OffsetUp=-15` drops it.
