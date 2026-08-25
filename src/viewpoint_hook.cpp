@@ -104,6 +104,13 @@ namespace pinballfx_ht
             outLocation->Z += static_cast<float>(offset.Z);
         }
 
+        void PublishLiveLean(const FramingComponents& lean)
+        {
+            Runtime().liveLeanForward.store(lean.forwardCm, std::memory_order_relaxed);
+            Runtime().liveLeanUp.store(lean.upCm, std::memory_order_relaxed);
+            Runtime().liveLeanRight.store(lean.rightCm, std::memory_order_relaxed);
+        }
+
         ue::FVector ApplyPositionOffset(const FRotator4f& cleanRotation, FVector4f* outLocation)
         {
             float offsetX = 0.0f, offsetY = 0.0f, offsetZ = 0.0f;
@@ -112,6 +119,7 @@ namespace pinballfx_ht
 
             const ue::FVector offset = PositionOffsetUE(cleanRotation, offsetX, offsetY, offsetZ);
             AddToLocation(outLocation, offset);
+            PublishLiveLean(FramingComponentsOf(cleanRotation, offset));
             return offset;
         }
 
@@ -139,6 +147,11 @@ namespace pinballfx_ht
             g_origGetPlayerViewPoint(self, outLocation, outRotation);
             const FRotator4f cleanRotation = *outRotation;
             const FVector4f  cleanLocation = *outLocation;
+
+            // Cleared here rather than on each of the paths below that apply no
+            // lean, so every one of them - menu, held gate, tracker silent -
+            // leaves nothing for the capture hotkey to bake in.
+            PublishLiveLean(FramingComponents{0.0f, 0.0f, 0.0f});
 
             const std::uint64_t call = g_hookCallCount.fetch_add(1, std::memory_order_relaxed) + 1;
             const int mode = Runtime().injectMode.load(std::memory_order_relaxed);

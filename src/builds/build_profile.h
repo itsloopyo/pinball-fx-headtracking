@@ -102,11 +102,12 @@ namespace pinballfx_ht
         std::uintptr_t kPlayRoomCameraManagerPtrRva;
         std::uintptr_t kIsCameraSequencePlayingRva;
 
-        // Default inject mode at startup. 0 = all callers (diagnostic only),
-        // 1..kMaxKnownCallers = inject only for kKnownCallerRvas[mode-1] (the
-        // render-path caller), and one past that = none. Ctrl+Shift+U / J cycle
-        // this live so the render caller can be re-confirmed in game after a
-        // patch without a rebuild.
+        // Which caller gets the head pose, fixed for the session. 0 = all of
+        // them, which injects nothing useful but runs the caller census, so a
+        // profile built for an unrecognised build after a patch can be shipped
+        // at 0 to re-derive the render caller from a real session.
+        // 1..kMaxKnownCallers = inject only for kKnownCallerRvas[mode-1], the
+        // render-path caller, which is what a finished profile ships.
         int kDefaultInjectMode;
     };
 

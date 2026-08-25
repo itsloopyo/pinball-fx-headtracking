@@ -34,9 +34,6 @@ void InjectGateTests(int& failures)
 
     Check(failures, ShouldInjectForCaller(0xdead, kInjectModeAllCallers, callers),
           "mode 0 injects for every caller (diagnostic)");
-    Check(failures, !ShouldInjectForCaller(0x01111111, kInjectModeNone, callers),
-          "the none-mode injects for nothing");
-
     Check(failures, ShouldInjectForCaller(0x01111111, 1, callers),
           "mode 1 injects for the render-path caller");
     Check(failures, !ShouldInjectForCaller(0x02222222, 1, callers),
@@ -48,7 +45,7 @@ void InjectGateTests(int& failures)
     // the table holds would inject on a return address of 0.
     Check(failures, !ShouldInjectForCaller(0, 5, callers),
           "an unpinned (zero) slot never matches");
-    Check(failures, !ShouldInjectForCaller(0x01111111, kInjectModeCount, callers),
+    Check(failures, !ShouldInjectForCaller(0x01111111, kInjectModeLastCaller + 1, callers),
           "a mode past the end injects for nothing");
     Check(failures, !ShouldInjectForCaller(0x01111111, -1, callers),
           "a negative mode injects for nothing");
@@ -56,16 +53,8 @@ void InjectGateTests(int& failures)
     Check(failures, CallerRvaForMode(1, callers) == 0x01111111,
           "CallerRvaForMode reports the pinned RVA");
     Check(failures, CallerRvaForMode(kInjectModeAllCallers, callers) == 0
-                 && CallerRvaForMode(kInjectModeNone, callers) == 0,
+                 && CallerRvaForMode(kInjectModeLastCaller + 1, callers) == 0,
           "CallerRvaForMode reports 0 for the modes that pin no caller");
-
-    Check(failures, CycleInjectMode(1, +1) == 2, "cycling forward steps one mode");
-    Check(failures, CycleInjectMode(kInjectModeNone, +1) == kInjectModeAllCallers,
-          "cycling forward past the last mode wraps to 0");
-    Check(failures, CycleInjectMode(kInjectModeAllCallers, -1) == kInjectModeNone,
-          "cycling back from 0 wraps to the last mode");
-    Check(failures, kInjectModeNone == static_cast<int>(kMaxKnownCallers) + 1,
-          "the none-mode sits one past the last caller slot");
 }
 
 void RotationCompositionTests(int& failures)
@@ -232,6 +221,47 @@ void CameraFramingOffsetTests(int& failures)
           "the framing basis is roll-independent too");
 }
 
+// Capturing a lean hands a world-space offset built in one basis over to
+// framing values read in another, and the whole point of the key is that the
+// view does not move when it is pressed. That only holds if the conversion is
+// exact, so these check the round trip rather than any particular number.
+void CaptureFramingTests(int& failures)
+{
+    const FRotator4f views[] = {
+        FRotator4f{0.0f, 0.0f, 0.0f},        // level
+        FRotator4f{-27.0f, -93.2f, 0.0f},    // a desktop table view
+        FRotator4f{-59.0f, 143.0f, 90.0f},   // cabinet, on its side
+    };
+
+    for (const FRotator4f& view : views) {
+        // A lean in every axis at once: forward 12cm, up 4cm, right 7cm as the
+        // processor reports it (metres, its own sign convention).
+        const ue::FVector lean = PositionOffsetUE(view, -0.07f, 0.04f, -0.12f);
+        const FramingComponents captured = FramingComponentsOf(view, lean);
+        const ue::FVector rebuilt = CameraFramingOffsetUE(view, captured.forwardCm,
+                                                          captured.upCm, captured.rightCm);
+        Check(failures, NearEqual(rebuilt.X, lean.X, 1e-3)
+                     && NearEqual(rebuilt.Y, lean.Y, 1e-3)
+                     && NearEqual(rebuilt.Z, lean.Z, 1e-3),
+              "a captured lean reproduces the same world offset, so the view does not "
+              "move when it is captured");
+    }
+
+    // The lean is horizon-locked and the framing basis is pitched, so on a
+    // nose-down view a purely horizontal lean has to come back as a mix of
+    // forward and up. Equal numbers would mean the conversion had been skipped.
+    const FRotator4f pitched{-45.0f, 0.0f, 0.0f};
+    const ue::FVector flat = PositionOffsetUE(pitched, 0.0f, 0.0f, -0.20f);
+    const FramingComponents mixed = FramingComponentsOf(pitched, flat);
+    Check(failures, NearEqual(flat.Z, 0.0, 1e-9),
+          "a surge lean stays horizontal whatever the view is pitched to");
+    Check(failures, mixed.forwardCm > 1.0f && mixed.upCm > 1.0f,
+          "a horizontal lean captured on a nose-down view splits into forward and up");
+
+    Check(failures, FramingComponentsOf(views[1], ue::FVector{0.0, 0.0, 0.0}).forwardCm == 0.0f,
+          "no lean captures nothing");
+}
+
 void FieldOfViewTests(int& failures)
 {
     // The default INI configures neither, and that has to be indistinguishable
@@ -297,6 +327,7 @@ int RunViewInjectionTests()
     RotationCompositionTests(failures);
     PositionOffsetTests(failures);
     CameraFramingOffsetTests(failures);
+    CaptureFramingTests(failures);
     FieldOfViewTests(failures);
     return pinballfx_tests::Report("View injection tests", failures);
 }
