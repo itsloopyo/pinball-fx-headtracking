@@ -33,17 +33,29 @@ namespace pinballfx_ht
         // true = world-space yaw (horizon-locked, FRotator addition); false =
         // camera-local yaw (quaternion post-multiply, leans on pitched turns).
         std::atomic<bool> worldSpaceYaw{true};
+        // From the build profile at bootstrap, and nothing moves it after
+        // that. Atomic because the hook reads it beside the members the hotkey
+        // thread does write.
         std::atomic<int>  injectMode{kInjectModeFirstCaller};
 
         // The camera framing, seeded from the INI at bootstrap and moved from
         // there by the tuning hotkeys. The hook reads these rather than the
-        // config, so a value found by eye takes effect on the next frame.
-        // Nothing writes them back: every change logs the whole set as a
-        // paste-ready [Camera] block, and that is what ends up in the INI.
+        // config, so a value found by eye takes effect on the next frame, and
+        // only the save hotkey puts one back in the file.
         std::atomic<float> fovOffset{0.0f};
         std::atomic<float> offsetForward{0.0f};
         std::atomic<float> offsetUp{0.0f};
         std::atomic<float> offsetRight{0.0f};
+
+        // The lean the player is holding right now, already expressed in the
+        // framing values that would reproduce it, so the capture hotkey adds
+        // three numbers and needs nothing from the game thread. Written every
+        // frame by the hook: zeroed as the frame starts and set again only if
+        // that frame actually applies a lean, so a frame that tracks nothing -
+        // a menu, a held gate, no tracker - publishes nothing to capture.
+        std::atomic<float> liveLeanForward{0.0f};
+        std::atomic<float> liveLeanUp{0.0f};
+        std::atomic<float> liveLeanRight{0.0f};
     };
 
     inline RuntimeState& Runtime()

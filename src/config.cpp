@@ -302,8 +302,12 @@ namespace pinballfx_ht
             "; back behind a ~15 degree lens, which is what flattens them.\n"
             "; All four can be tuned in game, one chord pair each: Ctrl+Shift+Q/A\n"
             "; is FovOffset, W/S is OffsetForward, E/D is OffsetUp, R/F is\n"
-            "; OffsetRight. Ctrl+Shift+X writes what you have back into these\n"
-            "; four lines, and Ctrl+Shift+Z puts them back to what is saved here.\n"
+            "; OffsetRight. Ctrl+Shift+V keeps the lean you are holding, so you can\n"
+            "; move your head to where the table looks right, press it, and sit\n"
+            "; back up with the view still there. Ctrl+Shift+M writes the result\n"
+            "; into these four lines. Ctrl+Shift+X goes back to what is saved here\n"
+            "; and Ctrl+Shift+Z to the camera the game placed, so those two flip\n"
+            "; between your framing and the stock one.\n"
             "OffsetForward=0\n"
             "OffsetUp=0\n"
             "OffsetRight=0\n\n"
@@ -328,8 +332,8 @@ namespace pinballfx_ht
             "SensitivityX=1.0\n"
             "SensitivityY=1.0\n"
             "SensitivityZ=1.0\n"
-            "; There are no lean limits: the camera follows your head as far\n"
-            "; as you take it, including back out of the cabinet.\n");
+            "; The camera follows your head as far as you take it, including\n"
+            "; back out of the cabinet.\n");
         std::fclose(file);
     }
 }

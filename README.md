@@ -93,9 +93,28 @@ The `[Camera]` values can be moved while you play, so you can find them by eye i
 | `OffsetUp`      | `Ctrl+Shift+E` | `Ctrl+Shift+D` | 1cm |
 | `OffsetRight`   | `Ctrl+Shift+R` | `Ctrl+Shift+F` | 1cm |
 
-`Ctrl+Shift+X` saves the four values into `HeadTracking.ini`, so they come back
-next launch. `Ctrl+Shift+Z` puts them back to whatever is saved there. Nothing is
-written until you press `Ctrl+Shift+X`, so an experiment costs nothing.
+The row beneath those does the rest:
+
+| Action                        | Chord          |
+|-------------------------------|----------------|
+| Back to the game's own camera | `Ctrl+Shift+Z` |
+| Back to the last saved values | `Ctrl+Shift+X` |
+| Keep the lean you are holding | `Ctrl+Shift+V` |
+| Save into `HeadTracking.ini`  | `Ctrl+Shift+M` |
+
+**`Ctrl+Shift+V` is the quick way to do all of this.** Lean your head to wherever
+the table looks right, press it, and sit back up: the lean you were holding
+becomes part of the framing, so the view stays where you put it. The camera does
+not move at the moment you press it, and you can press it again from the new
+position to go further.
+
+`Z` and `X` sit next to each other on purpose: `Z` zeroes all four, so the pair
+flips between the stock shot and your framing for comparison. Neither writes
+anything, so an experiment costs nothing.
+
+`Ctrl+Shift+M` is the only one that touches the file, which is why it sits away
+from the other three. Save and the values come back next launch, and `X` returns
+to what you last saved rather than to what the INI said when the game started.
 
 Every change is also logged, whole set at a time, so you can read a set back out
 of `HeadTracking.log` if you would rather type it in yourself:
@@ -162,11 +181,11 @@ Enabled=1
 SensitivityX=1.0
 SensitivityY=1.0
 SensitivityZ=1.0
-; There are no lean limits: the camera follows your head as far as you take it,
-; including back out of the cabinet.
+; The camera follows your head as far as you take it, including back out
+; of the cabinet.
 ```
 
-The pose is mapped 1:1 and nothing is clamped: the camera turns exactly as far as your head turned and moves exactly as far as your head moved, however far that is. Lean back a metre and the camera comes back out of the cabinet with you. Worth knowing on a pinball table specifically, the camera sits under a metre from the playfield with a fairly narrow field of view, so a given amount of head movement shifts the picture far more than the same movement would in a first-person game. Widening the FOV with `FovOffset` calms that down without touching the 1:1 mapping.
+The pose is mapped 1:1: the camera turns exactly as far as your head turned and moves exactly as far as your head moved, however far that is. Lean back a metre and the camera comes back out of the cabinet with you. Worth knowing on a pinball table specifically, the camera sits under a metre from the playfield with a fairly narrow field of view, so a given amount of head movement shifts the picture far more than the same movement would in a first-person game. Widening the FOV with `FovOffset` calms that down without touching the 1:1 mapping.
 
 Tracking suppressed by `[GameState]` is held, not reset, so the view picks up where your head is when play resumes rather than lurching.
 

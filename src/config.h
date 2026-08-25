@@ -52,8 +52,10 @@ namespace pinballfx_ht
         bool gameplay_only = true;
         bool suppress_during_camera_sequences = true;
 
-        // No lean limits, and no INI keys for them: how far a player leans is
-        // their call, so nothing here clamps the tracked offset.
+        // Position is 1:1 and has no bound of its own - where a player's head
+        // goes is theirs to decide - so there is nothing here but the
+        // sensitivities, and those exist for a physical correction rather than
+        // for taste.
         bool position_enabled = true;
         float position_sensitivity_x = 1.0f;
         float position_sensitivity_y = 1.0f;

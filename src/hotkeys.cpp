@@ -8,7 +8,6 @@
 
 #include <cameraunlock/input/chord_hotkeys.h>
 
-#include "builds/build_registry.h"
 #include "exe_paths.h"
 #include "logging.h"
 #include "view_injection.h"
@@ -26,8 +25,6 @@ namespace pinballfx_ht
         constexpr int kVkY = 0x59;
         constexpr int kVkG = 0x47;
         constexpr int kVkH = 0x48;
-        constexpr int kVkU = 0x55;
-        constexpr int kVkJ = 0x4A;
 
         // Framing: the Q/W/E/R row raises, the A/S/D/F row under it lowers, one
         // column per value. Nothing to select first and nothing to remember -
@@ -42,6 +39,10 @@ namespace pinballfx_ht
         constexpr int kVkF = 0x46;
         constexpr int kVkZ = 0x5A;
         constexpr int kVkX = 0x58;
+        // Not C: the game binds it to the in-game camera change and does not
+        // check modifiers, so Ctrl+Shift+C changes the view as well.
+        constexpr int kVkV = 0x56;
+        constexpr int kVkM = 0x4D;
 
         constexpr int kPollIntervalMs = 16;
 
@@ -114,14 +115,19 @@ namespace pinballfx_ht
                 static_cast<double>(Runtime().offsetRight.load()));
         }
 
+        float ClampToKnob(FramingKnob knob, float wanted)
+        {
+            const float limit = kKnobs[static_cast<std::size_t>(knob)].limit;
+            return wanted < -limit ? -limit : wanted > limit ? limit : wanted;
+        }
+
         void AdjustFraming(FramingKnob knob, int direction)
         {
             const KnobSpec& spec = kKnobs[static_cast<std::size_t>(knob)];
             std::atomic<float>& value = KnobValue(knob);
 
-            const float wanted = value.load() + static_cast<float>(direction) * spec.step;
-            const float clamped = wanted < -spec.limit ? -spec.limit
-                                : wanted >  spec.limit ?  spec.limit : wanted;
+            const float clamped = ClampToKnob(knob, value.load()
+                                             + static_cast<float>(direction) * spec.step);
             value.store(clamped);
 
             char message[96];
@@ -151,22 +157,57 @@ namespace pinballfx_ht
             LogFraming("saved to HeadTracking.ini");
         }
 
-        void ResetFraming(const Config& config)
+        void RestoreSavedFraming(const Config& config)
         {
             Runtime().fovOffset.store(config.fov_offset);
             Runtime().offsetForward.store(config.camera_offset_forward);
             Runtime().offsetUp.store(config.camera_offset_up);
             Runtime().offsetRight.store(config.camera_offset_right);
-            LogFraming("reset to the values in the INI");
+            LogFraming("back to the last saved values");
         }
 
-        void CycleInject(int direction)
+        // Hand the lean the player is holding over to the framing offsets, so
+        // that when they sit back up the view stays where they put it. The lean
+        // arrives already converted into framing values, and it is ADDED rather
+        // than assigned because the two stack on screen: a capture that
+        // replaced the framing would throw away everything already dialled in
+        // and move the camera the moment it was pressed.
+        void CaptureFraming()
         {
-            const int mode = CycleInjectMode(Runtime().injectMode.load(), direction);
-            Runtime().injectMode.store(mode);
-            Log::Line("hotkey: inject mode -> %d (caller RVA 0x%08llx)", mode,
-                static_cast<unsigned long long>(
-                    CallerRvaForMode(mode, Offsets().kKnownCallerRvas)));
+            const float forward = Runtime().liveLeanForward.load();
+            const float up      = Runtime().liveLeanUp.load();
+            const float right   = Runtime().liveLeanRight.load();
+            if (forward == 0.0f && up == 0.0f && right == 0.0f) {
+                LogFraming("nothing to capture - no lean is being applied right now");
+                return;
+            }
+
+            Runtime().offsetForward.store(ClampToKnob(FramingKnob::OffsetForward,
+                Runtime().offsetForward.load() + forward));
+            Runtime().offsetUp.store(ClampToKnob(FramingKnob::OffsetUp,
+                Runtime().offsetUp.load() + up));
+            Runtime().offsetRight.store(ClampToKnob(FramingKnob::OffsetRight,
+                Runtime().offsetRight.load() + right));
+
+            char message[128];
+            std::snprintf(message, sizeof(message),
+                "captured the lean you are holding (%.1f fwd, %.1f up, %.1f right cm)",
+                static_cast<double>(forward), static_cast<double>(up),
+                static_cast<double>(right));
+            LogFraming(message);
+        }
+
+        // All four to zero is the camera exactly as the game placed it, which
+        // makes this the other half of a comparison rather than a panic key:
+        // clear to see the stock shot, restore to see the tuned one, with the
+        // two keys side by side so the flip is one finger.
+        void ClearFraming()
+        {
+            Runtime().fovOffset.store(0.0f);
+            Runtime().offsetForward.store(0.0f);
+            Runtime().offsetUp.store(0.0f);
+            Runtime().offsetRight.store(0.0f);
+            LogFraming("cleared to the camera the game placed");
         }
     }
 
@@ -188,8 +229,12 @@ namespace pinballfx_ht
 
         // Camera framing, tuned in game and read back out of the log. Two rows
         // under the left hand, one column per value: Q/A field of view, W/S
-        // dolly, E/D height, R/F sideways, X to save the set and Z to put it
-        // back to what the INI says.
+        // dolly, E/D height, R/F sideways. Under them: Z back to the game's own
+        // camera, because Ctrl+Z is undo everywhere else and the thing a player
+        // reaches for it to undo is the whole experiment. X back to the last
+        // saved set, V to keep the lean being held. Save is the only one that
+        // writes a file, so it sits away from all of them, at the other end of
+        // the same row.
         poller->AddHotkey(kVkQ, ChordGuarded([] { AdjustFraming(FramingKnob::FovOffset, +1); }));
         poller->AddHotkey(kVkA, ChordGuarded([] { AdjustFraming(FramingKnob::FovOffset, -1); }));
         poller->AddHotkey(kVkW, ChordGuarded([] { AdjustFraming(FramingKnob::OffsetForward, +1); }));
@@ -198,13 +243,10 @@ namespace pinballfx_ht
         poller->AddHotkey(kVkD, ChordGuarded([] { AdjustFraming(FramingKnob::OffsetUp, -1); }));
         poller->AddHotkey(kVkR, ChordGuarded([] { AdjustFraming(FramingKnob::OffsetRight, +1); }));
         poller->AddHotkey(kVkF, ChordGuarded([] { AdjustFraming(FramingKnob::OffsetRight, -1); }));
-        poller->AddHotkey(kVkX, ChordGuarded([&config] { SaveFraming(config); }));
-        poller->AddHotkey(kVkZ, ChordGuarded([&config] { ResetFraming(config); }));
-
-        // Dev: re-confirm the render caller in-game (cycle which GPV caller is
-        // injected) without a rebuild. Ctrl+Shift+U next / Ctrl+Shift+J prev.
-        poller->AddHotkey(kVkU, ChordGuarded([] { CycleInject(+1); }));
-        poller->AddHotkey(kVkJ, ChordGuarded([] { CycleInject(-1); }));
+        poller->AddHotkey(kVkZ, ChordGuarded([] { ClearFraming(); }));
+        poller->AddHotkey(kVkX, ChordGuarded([&config] { RestoreSavedFraming(config); }));
+        poller->AddHotkey(kVkV, ChordGuarded([] { CaptureFraming(); }));
+        poller->AddHotkey(kVkM, ChordGuarded([&config] { SaveFraming(config); }));
 
         poller->Start(kPollIntervalMs);
         return poller;

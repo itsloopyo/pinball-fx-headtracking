@@ -22,16 +22,15 @@ namespace pinballfx_ht
     namespace ue = ::cameraunlock::unreal;
 
     // ---- inject-mode caller gate ----------------------------------------
-    // 0                        = all callers (diagnostic only - lets the census
-    //                            record every call chain so the render caller
-    //                            can be re-confirmed after a patch)
-    // 1..kMaxKnownCallers      = inject only for kKnownCallerRvas[mode-1]
-    // kInjectModeNone          = none (tracking disabled at the hook)
+    // Fixed for the session, from the active build profile's
+    // kDefaultInjectMode:
+    //   0                   = all callers (diagnostic only - lets the census
+    //                         record every call chain so the render caller can
+    //                         be re-confirmed after a patch)
+    //   1..kMaxKnownCallers = inject only for kKnownCallerRvas[mode-1]
     inline constexpr int kInjectModeAllCallers = 0;
     inline constexpr int kInjectModeFirstCaller = 1;
     inline constexpr int kInjectModeLastCaller = static_cast<int>(kMaxKnownCallers);
-    inline constexpr int kInjectModeNone = kInjectModeLastCaller + 1;
-    inline constexpr int kInjectModeCount = kInjectModeNone + 1;
 
     // 0 for a mode that pins no single caller (all-callers, none, out of range).
     inline std::uintptr_t CallerRvaForMode(int mode, const CallerRvaTable& callers)
@@ -46,13 +45,6 @@ namespace pinballfx_ht
         if (mode == kInjectModeAllCallers) return true;
         const std::uintptr_t rva = CallerRvaForMode(mode, callers);
         return rva != 0 && retRva == rva;
-    }
-
-    // Wraps at both ends so the dev hotkeys cycle the whole range in either
-    // direction.
-    inline int CycleInjectMode(int mode, int direction)
-    {
-        return (mode + direction + kInjectModeCount) % kInjectModeCount;
     }
 
     // ---- field of view ---------------------------------------------------
@@ -241,5 +233,28 @@ namespace pinballfx_ht
             fwd.Y * f + up.Y * u + right.Y * r,
             fwd.Z * f + up.Z * u + right.Z * r,
         };
+    }
+
+    struct FramingComponents { float forwardCm; float upCm; float rightCm; };
+
+    // The framing values that reproduce a world-space camera offset: the
+    // inverse of CameraFramingOffsetUE at the same clean rotation. Its basis is
+    // a rotation, so it is orthonormal and the components are just projections
+    // onto it - which is what lets a lean the player likes be handed over to
+    // the framing offsets exactly, rather than approximately. The lean is built
+    // in a horizon-locked basis and the framing in a pitched one, so the two
+    // sets of numbers differ; the world offset they produce does not.
+    inline FramingComponents FramingComponentsOf(const FRotator4f& clean,
+                                                 const ue::FVector& worldOffset)
+    {
+        const ue::FQuat4d q = ViewQuatNoRoll(clean);
+        const ue::FVector fwd   = ue::QuatRotateVec(q, ue::FVector{1.0, 0.0, 0.0});
+        const ue::FVector right = ue::QuatRotateVec(q, ue::FVector{0.0, 1.0, 0.0});
+        const ue::FVector up    = ue::QuatRotateVec(q, ue::FVector{0.0, 0.0, 1.0});
+        const auto Dot = [&worldOffset](const ue::FVector& axis) {
+            return static_cast<float>(worldOffset.X * axis.X + worldOffset.Y * axis.Y
+                                    + worldOffset.Z * axis.Z);
+        };
+        return FramingComponents{Dot(fwd), Dot(up), Dot(right)};
     }
 }
