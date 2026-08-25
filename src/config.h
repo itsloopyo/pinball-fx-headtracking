@@ -68,4 +68,11 @@ namespace pinballfx_ht
     // the range its consumer can take.
     void LoadConfig(const std::string& exeDir, Config& out);
     void WriteDefaultConfigIfMissing(const std::string& exeDir);
+
+    // Writes the four framing values back into the INI's [Camera] section,
+    // leaving every other key and every comment where it is, so a set found
+    // with the tuning chords survives the next launch. Returns false, having
+    // logged why, if the file could not be written.
+    bool SaveCameraFraming(const std::string& exeDir, float fovOffset, float forward,
+                           float up, float right);
 }

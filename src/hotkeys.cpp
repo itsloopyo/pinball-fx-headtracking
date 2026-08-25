@@ -9,6 +9,7 @@
 #include <cameraunlock/input/chord_hotkeys.h>
 
 #include "builds/build_registry.h"
+#include "exe_paths.h"
 #include "logging.h"
 #include "view_injection.h"
 
@@ -40,6 +41,7 @@ namespace pinballfx_ht
         constexpr int kVkD = 0x44;
         constexpr int kVkF = 0x46;
         constexpr int kVkZ = 0x5A;
+        constexpr int kVkX = 0x58;
 
         constexpr int kPollIntervalMs = 16;
 
@@ -80,9 +82,9 @@ namespace pinballfx_ht
 
         constexpr KnobSpec kKnobs[] = {
             {"FovOffset",     "deg", 1.0f,  kMaxConfiguredFov},
-            {"OffsetForward", "cm",  10.0f, kMaxCameraOffset},
-            {"OffsetUp",      "cm",  10.0f, kMaxCameraOffset},
-            {"OffsetRight",   "cm",  10.0f, kMaxCameraOffset},
+            {"OffsetForward", "cm",  1.0f,  kMaxCameraOffset},
+            {"OffsetUp",      "cm",  1.0f,  kMaxCameraOffset},
+            {"OffsetRight",   "cm",  1.0f,  kMaxCameraOffset},
         };
         static_assert(sizeof(kKnobs) / sizeof(kKnobs[0])
                           == static_cast<std::size_t>(FramingKnob::Count),
@@ -128,6 +130,27 @@ namespace pinballfx_ht
             LogFraming(message);
         }
 
+        // Deliberately a key of its own rather than a write on every adjustment:
+        // walking a value out to where it looks right is a hundred presses, and
+        // none of them should touch the file. It also means a nudge landing on
+        // the wrong key changes nothing permanent.
+        void SaveFraming(Config& config)
+        {
+            const float fov     = Runtime().fovOffset.load();
+            const float forward = Runtime().offsetForward.load();
+            const float up      = Runtime().offsetUp.load();
+            const float right   = Runtime().offsetRight.load();
+            if (!SaveCameraFraming(ExeDirectoryNarrow(), fov, forward, up, right)) return;
+
+            // What the INI says is now this, so the reset key has to agree -
+            // otherwise Ctrl+Shift+Z undoes a save rather than an experiment.
+            config.fov_offset = fov;
+            config.camera_offset_forward = forward;
+            config.camera_offset_up = up;
+            config.camera_offset_right = right;
+            LogFraming("saved to HeadTracking.ini");
+        }
+
         void ResetFraming(const Config& config)
         {
             Runtime().fovOffset.store(config.fov_offset);
@@ -148,7 +171,7 @@ namespace pinballfx_ht
     }
 
     std::unique_ptr<cameraunlock::input::HotkeyPoller> StartHotkeys(Session& session,
-                                                                    const Config& config)
+                                                                    Config& config)
     {
         auto poller = std::make_unique<cameraunlock::input::HotkeyPoller>();
 
@@ -165,7 +188,8 @@ namespace pinballfx_ht
 
         // Camera framing, tuned in game and read back out of the log. Two rows
         // under the left hand, one column per value: Q/A field of view, W/S
-        // dolly, E/D height, R/F sideways, and Z to put them all back.
+        // dolly, E/D height, R/F sideways, X to save the set and Z to put it
+        // back to what the INI says.
         poller->AddHotkey(kVkQ, ChordGuarded([] { AdjustFraming(FramingKnob::FovOffset, +1); }));
         poller->AddHotkey(kVkA, ChordGuarded([] { AdjustFraming(FramingKnob::FovOffset, -1); }));
         poller->AddHotkey(kVkW, ChordGuarded([] { AdjustFraming(FramingKnob::OffsetForward, +1); }));
@@ -174,6 +198,7 @@ namespace pinballfx_ht
         poller->AddHotkey(kVkD, ChordGuarded([] { AdjustFraming(FramingKnob::OffsetUp, -1); }));
         poller->AddHotkey(kVkR, ChordGuarded([] { AdjustFraming(FramingKnob::OffsetRight, +1); }));
         poller->AddHotkey(kVkF, ChordGuarded([] { AdjustFraming(FramingKnob::OffsetRight, -1); }));
+        poller->AddHotkey(kVkX, ChordGuarded([&config] { SaveFraming(config); }));
         poller->AddHotkey(kVkZ, ChordGuarded([&config] { ResetFraming(config); }));
 
         // Dev: re-confirm the render caller in-game (cycle which GPV caller is

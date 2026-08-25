@@ -206,6 +206,41 @@ namespace pinballfx_ht
         WarnRetiredLimitKeys(ini);
     }
 
+    // Written through the profile API rather than by rewriting the file,
+    // because that is the same subsystem LoadConfig reads it back with: what
+    // counts as the [Camera] section, as a key already present, and as the one
+    // that wins when a key appears twice is then decided once, by Windows,
+    // instead of by a hand-rolled parser that has to agree with it.
+    bool SaveCameraFraming(const std::string& exeDir, float fovOffset, float forward,
+                           float up, float right)
+    {
+        const std::string path = IniPath(exeDir);
+
+        const struct { const char* key; float value; } entries[] = {
+            {"FovOffset",     fovOffset},
+            {"OffsetForward", forward},
+            {"OffsetUp",      up},
+            {"OffsetRight",   right},
+        };
+
+        for (const auto& entry : entries) {
+            char text[32];
+            std::snprintf(text, sizeof(text), "%g", static_cast<double>(entry.value));
+            if (WritePrivateProfileStringA("Camera", entry.key, text, path.c_str())) continue;
+
+            Log::Line("config: could not write [Camera] %s to %s (error %lu). The values "
+                      "are still live for this session, but nothing was saved.",
+                entry.key, path.c_str(), GetLastError());
+            return false;
+        }
+
+        // The profile API buffers writes, and a game is far more often killed
+        // than closed, so the flush is what makes the difference between a
+        // saved setting and one that was only ever in a cache.
+        WritePrivateProfileStringA(nullptr, nullptr, nullptr, path.c_str());
+        return true;
+    }
+
     void WriteDefaultConfigIfMissing(const std::string& exeDir)
     {
         const std::string path = IniPath(exeDir);
@@ -267,9 +302,8 @@ namespace pinballfx_ht
             "; back behind a ~15 degree lens, which is what flattens them.\n"
             "; All four can be tuned in game, one chord pair each: Ctrl+Shift+Q/A\n"
             "; is FovOffset, W/S is OffsetForward, E/D is OffsetUp, R/F is\n"
-            "; OffsetRight, and Ctrl+Shift+Z puts them back to what is written\n"
-            "; here. Every change is written to HeadTracking.log as a block to\n"
-            "; paste back in - nothing is saved automatically.\n"
+            "; OffsetRight. Ctrl+Shift+X writes what you have back into these\n"
+            "; four lines, and Ctrl+Shift+Z puts them back to what is saved here.\n"
             "OffsetForward=0\n"
             "OffsetUp=0\n"
             "OffsetRight=0\n\n"
