@@ -2,7 +2,7 @@
 
 ![Pinball FX running with this mod](https://raw.githubusercontent.com/itsloopyo/pinball-fx-headtracking/main/assets/readme-clip.gif)
 
-Head tracking for Pinball FX: move your head and the camera moves with it, so you can look around naturally in game, on a normal monitor, no VR headset required.
+An unofficial head tracking mod for Pinball FX that moves the camera with your head while your mouse or controller keeps control of the table, driven by a webcam, phone, or any OpenTrack compatible tracker, with no VR headset required.
 
 ## Features
 
