@@ -11,7 +11,7 @@ An unofficial head tracking mod for Pinball FX that moves the camera with your h
 ## Requirements
 
 - [Pinball FX](https://store.steampowered.com/app/2328760/) on Steam.
-- A head tracker that speaks the [OpenTrack](https://github.com/opentrack/opentrack) UDP protocol: OpenTrack itself with any of its inputs (webcam, TrackIR, Tobii, SteamVR), or a phone app such as [Headcam](https://headcam.app), which turns any phone you already own into a tracker, for free.
+- A tracker that sends OpenTrack UDP pose data to port `4242` (`[Network] UdpPort` in `HeadTracking.ini`): one 48-byte datagram of six little-endian 64-bit floats, `x, y, z, yaw, pitch, roll`. [OpenTrack](https://github.com/opentrack/opentrack) sends that from any of its inputs (webcam, TrackIR, Tobii, SteamVR). A phone app can send it straight to this PC if it has an OpenTrack or UDP output option; [Headcam](https://headcam.app) does, for free. See [Setting Up OpenTrack](#setting-up-opentrack).
 - Windows 10 or 11, 64-bit. No Visual C++ redistributable to install, the mod is statically linked.
 
 ## Installation
