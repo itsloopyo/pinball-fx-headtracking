@@ -20,7 +20,7 @@ release ZIP.
 |-----------|---------|---------|--------------|
 | Ultimate ASI Loader | v9.7.2 | MIT | Bundled verbatim in the installer ZIP |
 | MinHook | v1.3.3 (`9fbd087`) | BSD-2-Clause | Statically linked into `PinballFXHeadTracking.asi` |
-| cameraunlock-core | 371b136584d90163755f0df43e55ed6612952486 | MIT | Statically linked into `PinballFXHeadTracking.asi` |
+| cameraunlock-core | 0f7a63455ddeb91677c9268e88fd35833aa77359 | MIT | Statically linked into `PinballFXHeadTracking.asi` |
 | OpenTrack | n/a | ISC | Not bundled; UDP protocol interoperability only |
 
 ---
@@ -164,7 +164,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## cameraunlock-core
 
-- **Version:** commit `371b136584d90163755f0df43e55ed6612952486`
+- **Version:** commit `0f7a63455ddeb91677c9268e88fd35833aa77359`
 - **License:** MIT
 - **Upstream:** https://github.com/itsloopyo/cameraunlock-core
 - **Usage:** Shared UDP pose receiver, interpolation, smoothing and hook management.
