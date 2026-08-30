@@ -136,9 +136,10 @@ The row beneath those does the rest:
 
 **`Ctrl+Shift+V` is the quick way to do all of this.** Lean your head to wherever
 the table looks right, press it, and sit back up: the lean you were holding
-becomes part of the framing, so the view stays where you put it. The camera does
-not move at the moment you press it, and you can press it again from the new
-position to go further.
+becomes part of the framing, so the view stays where you put it. It is added to
+whatever framing is already there rather than replacing it, so the view moves
+that far again while you are still leaning, and lands where you wanted it as you
+sit back. Press it again from there to go further.
 
 `Z` and `X` sit next to each other on purpose: `Z` zeroes all four, so the pair
 flips between the stock shot and your framing for comparison. Neither writes
