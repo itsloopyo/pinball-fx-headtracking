@@ -5,6 +5,8 @@
 
 #include <string>
 
+#include "cameraunlock/math/smoothing_utils.h"
+
 namespace pinballfx_ht
 {
     struct Config
@@ -25,8 +27,8 @@ namespace pinballfx_ht
 
         // Two smoothing parameters, picked per connection from the packet source
         // address. Both cover rotation and position.
-        float local_smoothing = 0.0f;
-        float remote_smoothing = 0.15f;
+        float local_smoothing = static_cast<float>(cameraunlock::math::kDefaultLocalSmoothing);
+        float remote_smoothing = static_cast<float>(cameraunlock::math::kDefaultRemoteSmoothing);
 
         // Camera field of view, in degrees. The game exposes no FOV control, so
         // these are the only way to change it. fov_override replaces whatever
