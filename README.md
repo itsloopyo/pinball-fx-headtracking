@@ -7,6 +7,7 @@ An unofficial head tracking mod for Pinball FX that moves the camera with your h
 ## Features
 
 - **6DOF head tracking** - look around and lean for the parallax to see past a ramp or under an upper playfield
+- **Works with any OpenTrack compatible tracker** - free options available for PC, iOS and Android
 
 ## Requirements
 
@@ -15,6 +16,13 @@ An unofficial head tracking mod for Pinball FX that moves the camera with your h
 - Windows 10 or 11, 64-bit. No Visual C++ redistributable to install, the mod is statically linked.
 
 ## Installation
+
+### Lopari
+
+Download [Lopari](https://lopari.app), choose **Pinball FX**, and click
+**Play with head tracking**.
+
+### Standalone Installer
 
 1. Download `PinballFXHeadTracking-v<version>-installer.zip` from the [Releases page](https://github.com/itsloopyo/pinball-fx-headtracking/releases).
 2. Extract it anywhere.
